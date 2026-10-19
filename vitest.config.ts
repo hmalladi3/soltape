@@ -13,6 +13,18 @@ export default defineConfig({
   test: {
     projects: [
       {
+        extends: true,
+        test: {
+          name: 'integration',
+          include: ['apps/*/test/integration/**/*.test.ts'],
+          environment: 'node',
+          testTimeout: 30_000,
+          hookTimeout: 180_000,
+          fileParallelism: false,
+        },
+      },
+      {
+        extends: true,
         test: {
           name: 'unit',
           include: ['packages/*/test/**/*.test.ts', 'apps/*/test/unit/**/*.test.ts'],

@@ -46,6 +46,7 @@ ioredis handles reconnects (`maxRetriesPerRequest: 1`, offline queue **disabled*
 
 At boot, the service runs `HGETALL` for every configured market, with an overall deadline of 500 ms.
 
+- Restore waits for the background connection started by `startBackground()` to become ready (within the runtime's 500 ms deadline), rather than starting a second connection. ioredis rejects `connect()` while a connection is in flight. The first end-to-end run caught exactly that.
 - Restored entries are loaded into the reconciler's **display state only**, with `restored: true` and `stale: true`, and they never become eligible.
 - REST `/price` for a market with only restored data returns `503 NO_ELIGIBLE_SOURCES` with `lastKnown` set to the restored value. Clients get "here's what it was" immediately on boot instead of nothing.
 - Missing, malformed, or wrong-schema entries are ignored and counted. That includes mints or sources no longer in `markets.json` after a config change. Restore only reads keys for currently configured markets, and ignores `src:` fields for sources not currently configured.
@@ -102,6 +103,7 @@ CREATE TABLE consolidated (
 - **Flush trigger:** a buffer reaches `PG_BATCH_ROWS` (default 1,000), or `PG_FLUSH_MS` (default 250 ms) elapses with rows pending.
 - **Insert method:** a multi-row parameterized `INSERT … VALUES (…),(…)`, through the `pg` pool (`max: 4`, `connectionTimeoutMillis: 2000`, `statement_timeout: 5000` ms). There is one flush in flight per table at a time. The timeouts mean a hung or unreachable database fails a flush within seconds instead of tying up the pool.
 - **Overflow:** when a buffer is full, the **oldest** row is dropped and `soltape_persist_dropped_total{sink}` is incremented. Recent history is worth more than old history to a live system.
+- **Idle-client errors:** both pools attach an `error` listener. Otherwise an idle client erroring when the server restarts would be an unhandled `error` event, which crashes the process.
 - **Read pool:** `/history` reads use a **separate** `pg` pool (`max: 2`, same timeouts), so a reader never waits behind a backlog of writes, and a heavy history query never stalls the writer.
 - **Failure:** a failed batch is retried once after 1 s. If the retry fails, the batch is dropped and counted, and the sink is marked `down` until a later batch succeeds. Retrying forever would let a dead database pin memory.
 
@@ -114,7 +116,7 @@ Expected live volume is about 5 markets × 3 venues at a few changes per second,
 
 ### Migrations
 
-- **Drizzle-kit** generates migrations from the table definitions. The partition DDL and `DEFAULT` partitions are a hand-written SQL migration.
+- **Hand-written SQL migrations** (`persistence/migrations.ts`), applied by a roughly 30-line migrator: a `soltape_migrations` table, with all pending migrations applied in one transaction under the advisory lock. Drizzle-kit cannot generate declarative partitioning (`PARTITION BY RANGE`, `DEFAULT` partitions), and faking its journal format to run hand-written files would be more machinery than the migrator itself. Drizzle is still used for the typed table definitions and the batched inserts.
 - **At boot**, migrations run under an advisory lock before the history sink is marked `up`. A migration failure leaves history `down` and doesn't stop the feed. It is logged at `error` level.
 
 ## Decisions & Alternatives

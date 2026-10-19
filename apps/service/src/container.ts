@@ -12,7 +12,9 @@ import { RpcVenueAdapter } from './ingest/rpc-adapter.js';
 import { buildSkeleton, type MarketModel } from './markets/model.js';
 import { Reconciler } from './reconcile/reconciler.js';
 import { DEFAULT_THRESHOLDS, type ReconcileThresholds } from './reconcile/types.js';
-import { noPersistence } from './runtime/placeholders.js';
+import { Persistence } from './persistence/persistence.js';
+import { PgHistory } from './persistence/pg-history.js';
+import { RedisLatestStore } from './persistence/redis-latest.js';
 import { PhaseHolder, ServiceRuntime, type PersistenceLifecycle, type RuntimeOptions, type ServerLifecycle, type Startable } from './runtime/runtime.js';
 import { LatencyWindow } from './telemetry/latency.js';
 import { createLogger, type Logger } from './telemetry/logger.js';
@@ -32,8 +34,12 @@ export interface Cradle {
   raydiumAdapter: Startable;
   jupiterAdapter: Startable;
   adapters: Startable[];
+  redisStore: RedisLatestStore;
+  pgHistory: PgHistory;
   persistence: PersistenceLifecycle;
   dependencies: DependencyStatus;
+  /** Connects reconciler outputs to the gateway and persistence, in that order. */
+  wiring: true;
   history: HistoryReader | undefined;
   latency: LatencyWindow;
   gateway: WsGateway;
@@ -73,11 +79,7 @@ export function createAppContainer(config: Config, overrides: Overrides = {}): A
     thresholds: asValue(DEFAULT_THRESHOLDS),
     reconciler: s(({ model, clock, thresholds }) => new Reconciler({ model, clock, thresholds })),
     latency: s(({ clock }) => new LatencyWindow(clock)),
-    gateway: s(({ model, reconciler, clock, logger, latency }) => {
-      const g = new WsGateway({ model, source: reconciler, clock, logger, latency });
-      reconciler.setListeners({ gateway: g });
-      return g;
-    }),
+    gateway: s(({ model, reconciler, clock, logger, latency }) => new WsGateway({ model, source: reconciler, clock, logger, latency })),
     rpcHttp: s(({ config, clock }) => new RpcHttpClient({ url: config.env.rpcHttpUrl, commitment: config.env.rpcCommitment, timeoutMs: 5000, clock })),
     orcaAdapter: s((d) => rpcAdapter(d, 'orca')),
     raydiumAdapter: s((d) => rpcAdapter(d, 'raydium')),
@@ -90,9 +92,18 @@ export function createAppContainer(config: Config, overrides: Overrides = {}): A
       ...(model.pools.some((p) => p.venue === 'raydium') ? [raydiumAdapter] : []),
       jupiterAdapter,
     ]),
-    persistence: asValue(noPersistence),
-    dependencies: asValue({ redis: () => 'down', postgres: () => 'down' } satisfies DependencyStatus),
-    history: asValue(undefined),
+    redisStore: s(({ config, model, reconciler, clock, logger }) => new RedisLatestStore({ url: config.env.redisUrl, model, source: reconciler, clock, logger })),
+    pgHistory: s(
+      ({ config, model, clock, logger }) =>
+        new PgHistory({ url: config.env.databaseUrl, model, clock, logger, options: { retentionDays: config.env.historyRetentionDays } }),
+    ),
+    persistence: s(({ redisStore, pgHistory, reconciler }) => new Persistence({ redisStore, history: pgHistory, restoreInto: (e) => reconciler.restore(e) })),
+    dependencies: s(({ persistence }) => persistence as unknown as DependencyStatus),
+    history: s(({ pgHistory }) => pgHistory),
+    wiring: s(({ reconciler, gateway, persistence, redisStore, pgHistory }) => {
+      reconciler.setListeners({ gateway, persistence: persistence as Persistence, observations: [redisStore, pgHistory] });
+      return true as const;
+    }),
     server: s(
       ({ config, model, reconciler, gateway, phase, clock, logger, decoder, dependencies, latency, history }) =>
         new ApiServer({ port: config.env.port, model, reconciler, gateway, phase, clock, logger, decoderImpl: decoder.impl, dependencies, latency, ...(history ? { history } : {}) }),

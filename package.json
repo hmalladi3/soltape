@@ -15,7 +15,8 @@
     "test:watch": "vitest",
     "test:rust": "cargo test --manifest-path packages/decoder/native/Cargo.toml --no-fail-fast",
     "start": "node apps/service/dist/main.js",
-    "dev": "pnpm build && node apps/service/dist/main.js"
+    "dev": "pnpm build && node apps/service/dist/main.js",
+    "test:integration": "vitest run --project integration"
   },
   "devDependencies": {
     "@types/node": "^24.19.2",

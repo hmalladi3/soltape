@@ -166,10 +166,10 @@ export class FakeRpc {
 }
 
 /** Polls `fn` until it returns truthy or the timeout elapses. */
-export async function waitFor<T>(fn: () => T, timeoutMs = 2000, what = 'condition'): Promise<NonNullable<T>> {
+export async function waitFor<T>(fn: () => T | Promise<T>, timeoutMs = 2000, what = 'condition'): Promise<NonNullable<T>> {
   const end = Date.now() + timeoutMs;
   for (;;) {
-    const v = fn();
+    const v = await fn();
     if (v) return v as NonNullable<T>;
     if (Date.now() > end) throw new Error(`timed out waiting for ${what}`);
     await new Promise((r) => setTimeout(r, 5));
