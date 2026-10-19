@@ -4,11 +4,12 @@ LLD: `docs/llds/reconciliation.md`
 
 ## Source Liveness
 
-- [ ] **REC-LIVE-001**: While an RPC venue (Orca or Raydium) reports adapter state `live` and its last slot notification is at most 2,000 ms old, the reconciler shall treat that venue as live.
+- [ ] **REC-LIVE-001**: While an RPC venue (Orca or Raydium) reports adapter state `live` and its last slot notification (or, before the first one, its transition to `live`) is at most 2,000 ms old, the reconciler shall treat that venue as live.
 - [ ] **REC-LIVE-002**: Jupiter is live while all of the following hold: it reports adapter state `live`; its last successful poll is at most 3× the configured (not backed-off) poll interval old; and, where its latest poll carried a `blockId` and any RPC venue has reported a slot, that `blockId` is at most 150 slots behind the highest RPC venue slot seen. While these hold, the reconciler shall treat Jupiter as live.
 - [ ] **REC-LIVE-003**: While a source's adapter state is `live` but its liveness condition (REC-LIVE-001 or REC-LIVE-002) does not hold, the reconciler shall treat the source as `stale` and publish the state transition.
 - [ ] **REC-LIVE-004**: When a source changes from `stale` or `down` back to live, the reconciler shall keep that source's observations ineligible with reason `source_recovering` until the source has stayed live for 1,000 ms continuously.
 - [ ] **REC-LIVE-005**: When a source changes from live to `stale` or `down`, the reconciler shall make that source's observations ineligible immediately, with no hold period.
+- [ ] **REC-LIVE-006**: When an adapter reports a source state change, the reconciler shall re-evaluate every market that uses that source immediately, without waiting for the next sweep.
 
 ## Pool State (owned by the reconciler)
 
@@ -36,7 +37,7 @@ LLD: `docs/llds/reconciliation.md`
   6. age ≤ 60 s (`expired`)
   7. finite positive price and finite non-negative depth (`invalid_value`)
   8. not an outlier (`outlier`)
-- [ ] **REC-ELIG-002**: When a route observation fails an eligibility check because of one leg, the reconciler shall report the reason with the failing leg's position.
+- [ ] **REC-ELIG-002**: When a route observation fails an eligibility check because of one leg, the reconciler shall report the reason code unchanged plus a separate `leg` field with the failing leg's 1-based position.
 - [ ] **REC-ELIG-003**: The reconciler shall never treat values restored from Redis as eligible observations.
 
 ## Consolidation
@@ -51,7 +52,7 @@ LLD: `docs/llds/reconciliation.md`
   - `spreadBps` as `(max − min) / median × 10⁴` over eligible observations
   - `slot` as the maximum slot among eligible on-chain observations
   - `degraded` as true when fewer observations are eligible than the market has configured venues whose source is not `disabled`
-  - `trigger` as the input that caused the evaluation: `<venue>:<pool>` with the pool update's slot (also for route observations, where it names the leg pool that updated), `jupiter` with its `blockId`, or `sweep` with a null slot
+  - `trigger` as the input that caused the evaluation: `<venue>:<pool>` with the pool update's slot (also for route observations, where it names the leg pool that updated), `jupiter` with its `blockId`, `state:<venue>` with a null slot when a source state change caused it, or `sweep` with a null slot
 - [ ] **REC-CONS-006**: If a market has no eligible observations, then the reconciler shall mark the market `unavailable` and retain its last consolidated value for display with `stale: true`. Where the market was previously available, it shall emit an `unavailable` event.
 - [ ] **REC-CONS-007**: When a market's evaluation produces the same price, eligible set, exclusion reasons, `degraded`, and `disagreement` as its previous emission, the reconciler shall emit nothing and increment the suppressed-updates counter.
 - [ ] **REC-CONS-008**: When a market's evaluation differs from its previous emission in any field listed in REC-CONS-007, the reconciler shall increment that market's `seq` and emit the consolidated update.

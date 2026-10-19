@@ -1,0 +1,14 @@
+{
+  "name": "@soltape/service",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -b"
+  },
+  "dependencies": {
+    "@soltape/decoder": "workspace:*",
+    "@soltape/shared": "workspace:*",
+    "zod": "^4.6.7"
+  }
+}

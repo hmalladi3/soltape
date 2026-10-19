@@ -143,7 +143,8 @@ This is three floating-point operations in JS. Keeping per-pool context (decimal
 ## napi Boundary
 
 - `#[napi]` functions take `frame: &[u8]` (via `Buffer` / `Uint8Array`, borrowed without copying) and `out: &mut [f64]` (`Float64Array`, also borrowed).
-- The whole body runs in `std::panic::catch_unwind`, and a panic becomes code −6. The crate builds with `panic = "unwind"` (required for this) and never uses `unsafe` outside napi-generated glue.
+- The whole body runs in `std::panic::catch_unwind`, and a panic becomes code −6. The crate builds with `panic = "unwind"` (required for this).
+- **Crate split:** `native/core` is the pure decoder, with `#![forbid(unsafe_code)]` and no napi dependency, so `cargo test`, proptest, and cargo-fuzz run without Node. `native/napi` is the thin boundary crate. It contains exactly one `unsafe` expression, obtaining `&mut [f64]` from the caller's `Float64Array` (napi-rs v3 does not accept `&mut [f64]` parameters directly), and documents why it is sound: the array is owned by the synchronous JS caller and is not detached or aliased during the call.
 - Prebuilt targets are `x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`, and `aarch64-apple-darwin`. Docker builds for the image platform (see `delivery.md`).
 - The loader (`index.ts`) catches `require` failures under `DECODER=auto`, logs the reason, and returns the reference decoder.
 

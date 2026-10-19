@@ -9,7 +9,7 @@ LLD: `docs/llds/telemetry.md`
 - [ ] **OBS-LAT-003**: When a consolidated update is emitted, the system shall record:
   - reconcile duration (reconciled − decoded) in `soltape_reconcile_seconds`
   - fan-out duration (sent − reconciled, where "sent" is after the last `ws.send` for that update) in `soltape_fanout_seconds`
-  - internal latency (sent − receive) in `soltape_internal_latency_seconds`, labelled by the triggering venue (`orca`, `raydium`, `jupiter`, or `sweep`), never by pool
+  - internal latency (sent − receive) in `soltape_internal_latency_seconds`, labelled by the triggering venue (`orca`, `raydium`, `jupiter`, or `sweep` for sweep and state-change triggers), never by pool
 - [ ] **OBS-LAT-004**: The system shall record internal latency only for inputs that produced an emitted consolidated update.
 - [ ] **OBS-LAT-005**: The latency histograms shall use buckets of 5 µs, 10 µs, 25 µs, 50 µs, 100 µs, 250 µs, 500 µs, 1 ms, 2.5 ms, 5 ms, 10 ms, and 50 ms.
 - [ ] **OBS-LAT-006**: The system shall record internal latency in an HDR histogram (3 significant digits, 1 µs to 10 s) covering a rolling 10-second interval, and serve its percentiles through `/stats`.

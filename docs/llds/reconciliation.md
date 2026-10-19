@@ -42,7 +42,7 @@ The reconciler owns all per-pool state. Adapters report facts, and these rules d
 
 | Source kind | Live while | Default threshold |
 |---|---|---|
-| RPC venue | adapter state is `live` **and** `now − lastSlotNotificationTs ≤ SLOT_SILENCE_MS` | 2,000 ms (≈5 slots) |
+| RPC venue | adapter state is `live` **and** `now − lastSlotNotificationTs ≤ SLOT_SILENCE_MS` (before the first slot notification, measured from the transition to `live`) | 2,000 ms (≈5 slots) |
 | Jupiter | adapter state is `live` **and** `now − lastSuccessfulPollTs ≤ JUPITER_SILENCE_MS` | 3 × poll interval (6,000 ms) |
 
 A source that is connected but past its threshold is `stale`, and the registry publishes that state transition. Jupiter is also `stale` while its latest `blockId` is more than `JUPITER_MAX_SLOT_LAG` (default 150 slots, about 60 s) behind the highest slot reported by any RPC venue. The check is skipped when no RPC venue has reported a slot. The registry owns this comparison because it is the only component that sees both sources' slots.
@@ -64,7 +64,7 @@ An observation is **eligible** only if all of the following hold, checked in thi
 | 5b | Normalized price is finite and > 0; size, if present, is finite and ≥ 0 | `invalid_value` |
 | 6 | Not an outlier (below) | `outlier` |
 
-For a route observation, every leg must pass checks 2–5. If one fails, its reason is reported with the failing leg named, e.g. `source_stale (leg 2)`.
+For a route observation, every leg must pass checks 2–5. If one fails, the reason code is reported unchanged, together with a separate `leg` field (1-based) naming the failing leg. Reason codes stay a closed enum for metrics and API consumers.
 
 Warm-restored values from Redis (see `persistence.md`) never satisfy check 2. `no_data` means "nothing received live since boot", even if a restored value is shown.
 
@@ -119,6 +119,10 @@ The consolidation runs on every change to an input of a market (pool update, quo
 7. **Change detection:** emit only if `price`, the eligible set, the `excluded` reasons, `degraded`, or `disagreement` changed. A pool update at a new slot with an identical price emits nothing. This is the main suppressor of redundant fan-out. Each emission increments `seq`.
 
 **Median definition:** for an odd count, the middle value. For an even count, the mean of the two middle values (so two sources give the midpoint, matching step 3). It is computed in place over a preallocated scratch array with insertion sort, which is allocation-free and optimal for n ≤ 8. That covers today's 3 venues and leaves room for Phoenix and Drift. `Array.sort` isn't used.
+
+## State-Change Re-evaluation
+
+When an adapter reports a source state change, every market using that source is re-evaluated immediately with trigger `state:<venue>`. Losing a source then takes effect at once, without waiting for the next sweep.
 
 ## Sweep Timer
 

@@ -1,0 +1,32 @@
+{
+  "name": "@soltape/decoder",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "napi": {
+    "binaryName": "soltape-decoder",
+    "targets": [
+      "x86_64-unknown-linux-gnu",
+      "aarch64-unknown-linux-gnu",
+      "aarch64-apple-darwin"
+    ]
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "build:native": "napi build --platform --release --manifest-path native/Cargo.toml --package soltape-decoder-napi --output-dir native --js false --dts native.d.ts"
+  },
+  "devDependencies": {
+    "@napi-rs/cli": "^3.10.8",
+    "@orca-so/whirlpools-client": "^7.0.0",
+    "@raydium-io/raydium-sdk-v2": "0.2.74-alpha",
+    "@solana/kit": "^8.5.0"
+  }
+}

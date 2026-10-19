@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "composite": false,
+    "declaration": false,
+    "rootDir": ".",
+    "paths": {
+      "@soltape/shared": ["./packages/shared/src/index.ts"],
+      "@soltape/decoder": ["./packages/decoder/src/index.ts"]
+    }
+  },
+  "include": ["packages/*/src", "packages/*/test", "apps/*/src", "apps/*/test", "vitest.config.ts"]
+}

@@ -6,7 +6,7 @@ LLD: `docs/llds/delivery.md`
 
 - [ ] **DLV-QA-001**: All TypeScript packages shall compile with `strict`, `noUncheckedIndexedAccess`, and `exactOptionalPropertyTypes` enabled, as ESM.
 - [ ] **DLV-QA-002**: All TypeScript code shall pass ESLint with typescript-eslint `strict-type-checked` and Prettier formatting.
-- [ ] **DLV-QA-003**: The Rust crate shall pass `cargo fmt --check` and `cargo clippy -- -D warnings`, and forbid `unsafe` code outside napi-generated modules.
+- [ ] **DLV-QA-003**: The Rust crate shall pass `cargo fmt --check` and `cargo clippy -- -D warnings`, and forbid `unsafe` code in the decoder core crate. The napi boundary crate may contain only `unsafe` expressions that carry a `SAFETY:` comment.
 
 ## Image
 

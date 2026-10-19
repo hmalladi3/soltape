@@ -6,3 +6,4 @@ target/
 .env.*
 !.env.example
 coverage/
+packages/decoder/native/target/
