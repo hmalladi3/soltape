@@ -45,7 +45,7 @@ LLD: `docs/llds/telemetry.md`
   - `soltape_persist_dropped_total`
   - `soltape_persist_flush_seconds`
   - `soltape_persist_state`
-- [x] **OBS-MET-005**: The system shall expose Node.js default metrics, including event-loop delay, GC duration, and heap usage.
+- [x] **OBS-MET-005**: The system shall expose Node.js default metrics, including event-loop delay, GC duration, and heap usage, plus `soltape_eventloop_delay_p99_seconds`: the p99 event-loop delay since the previous scrape, sampled at 1 ms and net of the sampling interval.
 - [x] **OBS-MET-006**: The system shall compute time-dependent gauges (ages, liveness) at scrape time rather than on each update.
 - [x] **OBS-MET-007**: The system shall use only source, mint, and fixed enumerations as metric label values.
 - [x] **OBS-MET-008**: The system shall compute `soltape_source_slot_lag` for each RPC venue as the venue's highest slot-notification slot minus the slot of its most recent account update.

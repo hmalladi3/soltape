@@ -21,6 +21,46 @@ importers:
         specifier: ^5.0.5
         version: 5.0.5(@opentelemetry/api@1.9.1)(@types/node@24.19.2)(vite@8.3.4(@types/node@24.19.2)(yaml@2.9.1))
 
+  apps/replay:
+    dependencies:
+      '@soltape/decoder':
+        specifier: workspace:*
+        version: link:../../packages/decoder
+      '@soltape/service':
+        specifier: workspace:*
+        version: link:../service
+      '@soltape/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+      hdr-histogram-js:
+        specifier: ^3.0.1
+        version: 3.0.1
+      pino:
+        specifier: ^10.4.0
+        version: 10.4.0
+      ws:
+        specifier: ^8.22.0
+        version: 8.22.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
+    devDependencies:
+      '@orca-so/whirlpools-client':
+        specifier: ^7.0.0
+        version: 7.0.0(@solana/kit@8.5.0(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@7.0.2))
+      '@raydium-io/raydium-sdk-v2':
+        specifier: 0.2.74-alpha
+        version: 0.2.74-alpha(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@7.0.2)(utf-8-validate@6.0.6)
+      '@solana/kit':
+        specifier: ^8.5.0
+        version: 8.5.0(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@7.0.2)(utf-8-validate@6.0.6)
+      '@types/ws':
+        specifier: ^8.18.2
+        version: 8.18.2
+      awilix:
+        specifier: ^13.0.5
+        version: 13.0.5
+
   apps/service:
     dependencies:
       '@soltape/decoder':
@@ -82,6 +122,28 @@ importers:
         specifier: ^12.2.1
         version: 12.2.1
 
+  bench:
+    dependencies:
+      '@soltape/decoder':
+        specifier: workspace:*
+        version: link:../packages/decoder
+      '@soltape/replay':
+        specifier: workspace:*
+        version: link:../apps/replay
+      '@soltape/shared':
+        specifier: workspace:*
+        version: link:../packages/shared
+      hdr-histogram-js:
+        specifier: ^3.0.1
+        version: 3.0.1
+      ws:
+        specifier: ^8.22.0
+        version: 8.22.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)
+    devDependencies:
+      '@types/ws':
+        specifier: ^8.18.2
+        version: 8.18.2
+
   packages/decoder:
     devDependencies:
       '@napi-rs/cli':
@@ -89,7 +151,7 @@ importers:
         version: 3.10.8(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(@types/node@24.19.2)
       '@orca-so/whirlpools-client':
         specifier: ^7.0.0
-        version: 7.0.0(@solana/kit@8.5.0(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@7.0.2)(utf-8-validate@6.0.6))
+        version: 7.0.0(@solana/kit@8.5.0(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@7.0.2))
       '@raydium-io/raydium-sdk-v2':
         specifier: 0.2.74-alpha
         version: 0.2.74-alpha(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@7.0.2)(utf-8-validate@6.0.6)
@@ -3756,7 +3818,7 @@ snapshots:
 
   '@opentelemetry/api@1.9.1': {}
 
-  '@orca-so/whirlpools-client@7.0.0(@solana/kit@8.5.0(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@7.0.2)(utf-8-validate@6.0.6))':
+  '@orca-so/whirlpools-client@7.0.0(@solana/kit@8.5.0(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@7.0.2))':
     dependencies:
       '@solana/kit': 8.5.0(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@7.0.2)(utf-8-validate@6.0.6)
 
@@ -4354,7 +4416,7 @@ snapshots:
     transitivePeerDependencies:
       - fastestsmallesttextencoderdecoder
 
-  '@solana/spl-token-group@0.0.7(@solana/web3.js@1.99.0(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@6.0.6))(fastestsmallesttextencoderdecoder@1.0.22)(typescript@7.0.2)':
+  '@solana/spl-token-group@0.0.7(@solana/web3.js@1.99.0(bufferutil@4.1.0)(typescript@7.0.2))(fastestsmallesttextencoderdecoder@1.0.22)(typescript@7.0.2)':
     dependencies:
       '@solana/codecs': 2.0.0-rc.1(fastestsmallesttextencoderdecoder@1.0.22)(typescript@7.0.2)
       '@solana/web3.js': 1.99.0(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@6.0.6)
@@ -4362,7 +4424,7 @@ snapshots:
       - fastestsmallesttextencoderdecoder
       - typescript
 
-  '@solana/spl-token-metadata@0.1.6(@solana/web3.js@1.99.0(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@6.0.6))(fastestsmallesttextencoderdecoder@1.0.22)(typescript@7.0.2)':
+  '@solana/spl-token-metadata@0.1.6(@solana/web3.js@1.99.0(bufferutil@4.1.0)(typescript@7.0.2))(fastestsmallesttextencoderdecoder@1.0.22)(typescript@7.0.2)':
     dependencies:
       '@solana/codecs': 2.0.0-rc.1(fastestsmallesttextencoderdecoder@1.0.22)(typescript@7.0.2)
       '@solana/web3.js': 1.99.0(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@6.0.6)
@@ -4374,8 +4436,8 @@ snapshots:
     dependencies:
       '@solana/buffer-layout': 4.0.1
       '@solana/buffer-layout-utils': 0.3.0(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@6.0.6)
-      '@solana/spl-token-group': 0.0.7(@solana/web3.js@1.99.0(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@6.0.6))(fastestsmallesttextencoderdecoder@1.0.22)(typescript@7.0.2)
-      '@solana/spl-token-metadata': 0.1.6(@solana/web3.js@1.99.0(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@6.0.6))(fastestsmallesttextencoderdecoder@1.0.22)(typescript@7.0.2)
+      '@solana/spl-token-group': 0.0.7(@solana/web3.js@1.99.0(bufferutil@4.1.0)(typescript@7.0.2))(fastestsmallesttextencoderdecoder@1.0.22)(typescript@7.0.2)
+      '@solana/spl-token-metadata': 0.1.6(@solana/web3.js@1.99.0(bufferutil@4.1.0)(typescript@7.0.2))(fastestsmallesttextencoderdecoder@1.0.22)(typescript@7.0.2)
       '@solana/web3.js': 1.99.0(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@6.0.6)
       buffer: 6.0.3
     transitivePeerDependencies:
@@ -5340,7 +5402,7 @@ snapshots:
 
   isexe@2.0.0: {}
 
-  isomorphic-ws@4.0.1(ws@7.5.13(bufferutil@4.1.0)(utf-8-validate@6.0.6)):
+  isomorphic-ws@4.0.1(ws@7.5.13(bufferutil@4.1.0)):
     dependencies:
       ws: 7.5.13(bufferutil@4.1.0)(utf-8-validate@6.0.6)
 
@@ -5359,7 +5421,7 @@ snapshots:
       delay: 5.0.0
       es6-promisify: 5.0.0
       eyes: 0.1.8
-      isomorphic-ws: 4.0.1(ws@7.5.13(bufferutil@4.1.0)(utf-8-validate@6.0.6))
+      isomorphic-ws: 4.0.1(ws@7.5.13(bufferutil@4.1.0))
       json-stringify-safe: 5.0.1
       stream-json: 1.9.1
       uuid: 8.3.2

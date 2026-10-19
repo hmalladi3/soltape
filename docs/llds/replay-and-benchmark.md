@@ -29,10 +29,18 @@ Output: `fixtures/session-<date>.ndjson.gz`, where each line is `{t, kind, venue
 
 The committed fixture has to cover the committed `markets.json`. If someone edits the markets file without re-recording, replay mode would fail pool validation at boot. Two guards prevent that:
 
-- **CI check:** `pnpm fixtures:check` verifies that every pool and mint in `markets.json` has a boot snapshot and at least one account frame in the fixture. It fails with the missing addresses listed.
+- **CI check:** `pnpm fixtures:check` verifies that every pool and mint in `markets.json` has a boot snapshot in the fixture, and fails with the missing addresses listed. Pools without any account frame are reported as warnings. Thin pools can go minutes without a trade (the first 5-minute recording had two such Raydium pools), and replay serves their snapshot exactly as mainnet would, with revalidation keeping them eligible.
 - **Replay server:** if asked to subscribe or snapshot an address the fixture doesn't contain, it answers `getMultipleAccounts` with `null` and logs `error` *"fixture does not cover <address>; run pnpm record"*. The service then treats the pool as missing (fatal at boot, `misconfigured` after boot).
 
 The README tells anyone editing `markets.json` to re-run `pnpm record`.
+
+### Frame reconstruction
+
+Replay cannot send recorded frames byte for byte, because each client's subscription ids and the rebased slots differ from the recording. Each fixture frame therefore keeps the raw received text (for decoder fixtures and verification) *and* its parsed fields (`data`, `lamports`, `owner`, `space`, `slot`). Replay rebuilds frames from a template with exactly Solana's key order, splicing in the client's subscription id and the slot. The account bytes, sizes and envelope shape are the real ones. Subscription ids are deterministic per address (`1000 + index`), so rate mode can pre-encode frame halves before any client connects.
+
+### First recording (2026-10-19)
+
+5 minutes on the public RPC: 414 account frames (all verified against both decoders and both venue SDKs), 2,756 slot notifications, and a synthetic Jupiter track (no key), in an 82 KB gzipped fixture. Two thin Raydium pools (JTO/SOL, WIF/SOL) did not trade during the window. The coverage check lists them as warnings, and replay serves their snapshots.
 
 ## Replay Server (`apps/replay`)
 

@@ -2,20 +2,19 @@
 
 ## In progress
 
-- Wave 6: replay server, recorder, fault injection, benchmark harness, decoder microbenchmark
+- Wave 7: delivery: Dockerfile, compose (live, replay, bench profiles; configurable host port), GitHub Actions CI (all jobs incl. compose smoke + bench summary), GHCR image publishing, README
 
 ## Up next
 
-- Phase 7 candidate: internal p50 ≈ 450 µs on live frames: one SOL/USDC update fans out to 5 markets (every route uses that leg); profile the per-emission cost (JSON serialization, observation views) before optimizing
+- Phase 7 (after wave 7, on Linux): (1) fan-out collapse at 10k updates/s × 100 subscribers (event loop 591 ms, conflation 65%): per-message ws.send to every subscriber = 1M sends/s; candidate: coalesce each client's pending updates into one frame per tick (protocol change: walk the arrow first); (2) live-frame fan-out of one SOL/USDC update to 5 markets; (3) measure noise floor (A/A) before accepting anything
 - Wave 7: compose host port must be configurable (port 8080 is taken by another container on this machine)
-- Wave 7: delivery (Docker, compose, CI)
-- Record the first mainnet session fixture (`pnpm record`) once the recorder exists (wave 6)
 
 ## Waiting on the user
 
 
 ## Done
 
+- 2026-10-19: Wave 6 (recorder with SDK verification, replay server realtime/rate/faults, synthetic bench markets, benchmark orchestrator + load clients + HDR join, decoder microbench): 421 unit tests; RPL-* [x]; first mainnet fixture recorded (414 verified frames); first quick bench on M4: 1 sub no knee to 10k/s (e2e p50 38 µs, internal p99 16 µs), 100 subs knee at 10k/s; fixed event-loop metric (default included the sampling interval)
 - 2026-10-19: Wave 5 (Prometheus metric set with scrape-time counters and gauges, stage histograms, HTTP metrics, rate-limited logs, component on every line, structured config errors): 392 unit tests; OBS-* specs [x]
 - 2026-10-19: Wave 4 (Redis latest snapshot, Postgres partitioned history, migrator, DEFAULT-partition move, bounded writer, read pool): 378 unit + 17 integration tests (real Postgres 17 + Redis 7 via testcontainers); PER-* specs [x]; e2e against mainnet: dependencies up, history buckets served, warm restore serves lastKnown 0.7 s after restart
 - 2026-10-19: Wave 3 (REST, health, stats, WebSocket gateway with conflation and slow-client eviction, live page with per-source deviation strip): 378 tests green; API-* specs [x]; live page verified in Chrome against mainnet

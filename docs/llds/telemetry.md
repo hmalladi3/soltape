@@ -82,6 +82,7 @@ Metric names are fixed here, because the README and benchmark refer to them.
 
 - The four latency histograms listed above.
 - `nodejs_eventloop_lag_*` via prom-client `collectDefaultMetrics` (backed by `monitorEventLoopDelay`), plus GC duration and heap metrics.
+- `soltape_eventloop_delay_p99_seconds`: `monitorEventLoopDelay` reports the sampling interval *plus* lateness. Measured: about 10.6 ms at 10 ms resolution on an idle loop. This gauge samples at 1 ms, subtracts the interval, and resets on every scrape, so it reads as real delay since the last scrape. The benchmark's event-loop column and knee use it. The first benchmark run, using the default metric, reported a constant 11 ms that was pure resolution.
 
 **Gateway**
 

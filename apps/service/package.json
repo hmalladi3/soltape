@@ -28,5 +28,11 @@
     "@types/pg": "^8.23.1",
     "@types/ws": "^8.18.2",
     "testcontainers": "^12.2.1"
+  },
+  "exports": {
+    "./*.js": {
+      "types": "./dist/*.d.ts",
+      "default": "./dist/*.js"
+    }
   }
 }

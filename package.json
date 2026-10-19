@@ -16,7 +16,12 @@
     "test:rust": "cargo test --manifest-path packages/decoder/native/Cargo.toml --no-fail-fast",
     "start": "node apps/service/dist/main.js",
     "dev": "pnpm build && node apps/service/dist/main.js",
-    "test:integration": "vitest run --project integration"
+    "test:integration": "vitest run --project integration",
+    "record": "pnpm build && node apps/replay/dist/main.js record",
+    "fixtures:check": "pnpm build && node apps/replay/dist/main.js check",
+    "replay": "pnpm build && node apps/replay/dist/main.js serve",
+    "bench": "pnpm build && node bench/dist/run.js",
+    "bench:decoder": "pnpm build && node bench/dist/decoder.js"
   },
   "devDependencies": {
     "@types/node": "^24.19.2",

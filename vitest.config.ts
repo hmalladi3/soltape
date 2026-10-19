@@ -8,6 +8,9 @@ export default defineConfig({
     alias: {
       '@soltape/shared': src('./packages/shared/src/index.ts'),
       '@soltape/decoder': src('./packages/decoder/src/index.ts'),
+      '@soltape/service': src('./apps/service/src'),
+      '@soltape/replay': src('./apps/replay/src'),
+
     },
   },
   test: {
@@ -27,7 +30,7 @@ export default defineConfig({
         extends: true,
         test: {
           name: 'unit',
-          include: ['packages/*/test/**/*.test.ts', 'apps/*/test/unit/**/*.test.ts'],
+          include: ['packages/*/test/**/*.test.ts', 'apps/*/test/unit/**/*.test.ts', 'bench/test/**/*.test.ts'],
           environment: 'node',
         },
       },

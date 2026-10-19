@@ -113,6 +113,9 @@ describe('metrics', () => {
   it('exposes Node.js default metrics including event-loop delay, GC and heap', async () => {
     const b = await setup().text();
     for (const m of ['nodejs_eventloop_lag_p99_seconds', 'nodejs_gc_duration_seconds', 'nodejs_heap_size_used_bytes']) expect(b).toContain(m);
+    const delay = Number(/^soltape_eventloop_delay_p99_seconds (\S+)$/m.exec(b)![1]);
+    expect(delay).toBeGreaterThanOrEqual(0);
+    expect(delay).toBeLessThan(0.05); // net of the sampling interval: an idle loop reads near zero
   });
 
   // @spec OBS-MET-006

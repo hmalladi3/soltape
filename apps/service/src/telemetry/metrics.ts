@@ -1,4 +1,5 @@
 import type { SourceId } from '@soltape/shared';
+import { monitorEventLoopDelay } from 'node:perf_hooks';
 import { Counter, Gauge, Histogram, Registry, collectDefaultMetrics } from 'prom-client';
 import type { WsGateway } from '../api/gateway.js';
 import type { MarketModel } from '../markets/model.js';
@@ -11,6 +12,7 @@ export const LATENCY_BUCKETS = [5e-6, 10e-6, 25e-6, 50e-6, 100e-6, 250e-6, 500e-
 const REQUEST_BUCKETS = [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5];
 const SOURCE_STATES = ['disabled', 'connecting', 'live', 'stale', 'down'] as const;
 const SOURCES: readonly SourceId[] = ['orca', 'raydium', 'jupiter'];
+const LOOP_RESOLUTION_MS = 1;
 
 /** What the collectors read at scrape time. Counters are derived from component stats. */
 export interface MetricSources {
@@ -46,6 +48,7 @@ export class Telemetry implements TelemetryHooks {
   readonly httpSeconds: Histogram<'route'>;
   private readonly decodeChild: Record<string, { observe(v: number): void }>;
   private readonly internalChild: Record<string, { observe(v: number): void }>;
+  private readonly loop: ReturnType<typeof monitorEventLoopDelay>;
 
   constructor() {
     const r = this.registry;
@@ -61,6 +64,21 @@ export class Telemetry implements TelemetryHooks {
     this.httpSeconds = h('soltape_http_request_seconds', 'HTTP request duration', ['route'], [0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.1, 0.5, 2]);
     this.decodeChild = Object.fromEntries(SOURCES.map((s) => [s, this.decodeH.labels(s)]));
     this.internalChild = Object.fromEntries(['orca', 'raydium', 'jupiter', 'sweep'].map((s) => [s, this.internalH.labels(s)]));
+    // Node's histogram reports the sampling interval plus lateness; subtract the interval so the
+    // gauge is the actual event-loop delay (the default nodejs_eventloop_lag_* metrics include it).
+    this.loop = monitorEventLoopDelay({ resolution: LOOP_RESOLUTION_MS });
+    this.loop.enable();
+    const loop = this.loop;
+    new Gauge({
+      name: 'soltape_eventloop_delay_p99_seconds',
+      help: 'p99 event-loop delay since the previous scrape, net of the 1 ms sampling interval',
+      registers: [r],
+      collect() {
+        const p99 = loop.count > 0 ? loop.percentile(99) : Number.NaN;
+        this.set(Number.isFinite(p99) ? Math.max(0, p99 / 1e9 - LOOP_RESOLUTION_MS / 1000) : 0);
+        loop.reset();
+      },
+    });
   }
 
   // ---- hot-path hooks (milliseconds in, seconds recorded) ---------------------------------
