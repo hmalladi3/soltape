@@ -45,7 +45,8 @@ interface FrameDecoder {
 | 3 | `SQRT` | `sqrt_price / 2^64` as a correctly rounded f64 |
 | 4 | `LIQ` | Active liquidity (u128) as a correctly rounded f64 |
 | 5 | `TICK` | Current tick index (i32) |
-| 6–7 | — | Reserved |
+| 6 | `SIZE_UNEXPECTED` | 1 if the account length ≠ the documented size for the layout, else 0 |
+| 7 | — | Reserved |
 
 The f64 values are exact for every quantity that matters. Subscription ids and slots are below 2^53. `sqrt_price` divided by a power of two keeps a 53-bit relative precision of about 1e−16. Liquidity is used only for the approximate depth estimate.
 
@@ -58,7 +59,7 @@ The f64 values are exact for every quantity that matters. Subscription ids and s
 | 0 | `OTHER` | Valid JSON that is not a notification (confirmation, error, unknown method). The caller parses it. |
 | −1 | `MALFORMED_JSON` | Not valid JSON, or a required field has the wrong type |
 | −2 | `BAD_ENCODING` | Data is not `[string, "base64"]`, or invalid base64 |
-| −3 | `BAD_LENGTH` | Decoded length doesn't match the layout's exact size, or exceeds the scratch buffer |
+| −3 | `BAD_LENGTH` | Decoded length is shorter than the layout's minimum (the highest byte offset read), or exceeds the scratch buffer |
 | −4 | `UNKNOWN_LAYOUT` | The 8-byte discriminator doesn't match any known layout |
 | −5 | `INVALID_VALUE` | Decoded fields fail sanity checks (e.g. `sqrt_price == 0`) |
 | −6 | `PANIC` | A Rust panic was caught. This indicates a decoder bug and is fuzz-target territory. |
@@ -77,6 +78,8 @@ A notification has this shape:
 Rust parses it with `serde_json` into **borrowed** structs (`&'a str` fields, zero-copy against the input slice). Unknown fields are ignored. Field order is not assumed, since JSON object order is not guaranteed. Only `method`, `params.subscription`, `params.result.context.slot` / `params.result.slot`, and `params.result.value.data` are read. `owner` is not checked per frame, because ownership was validated at boot and accounts can't change owner while subscribed in a way that matters to a read-only feed. The base64 payload is decoded into a 4 KiB stack buffer. A payload larger than that fails with `BAD_LENGTH` before decoding.
 
 ## Account Layouts
+
+**Length policy:** an account is accepted if its length is ≥ the layout's **minimum length** (the end of the highest field read) and ≤ the scratch buffer size. A length different from the documented size (653 / 1544) is still decoded, and is flagged by setting `out[6]` (`SIZE_UNEXPECTED`) to `1`. Ingest logs that once per layout at `warn`. Program upgrades that append fields therefore keep working, and the warning makes them visible.
 
 Both are Anchor accounts: the first 8 bytes are the discriminator `sha256("account:<Name>")[..8]`. The constants are computed in a `build.rs` or `const` test from the name, never pasted by hand, and are verified against recorded fixtures. All integers are little-endian.
 
@@ -153,7 +156,7 @@ The reference decoder has the same function signatures and output semantics. To 
 - **JSON:** `JSON.parse(frame.toString('utf8'))`, then the same field extraction, with the same status code for each failure class.
 - **base64:** `Buffer.from(s, 'base64')`, with explicit validation, because Node's decoder is lenient and silently skips invalid characters. The reference must reject anything Rust rejects.
 
-Parity is defined on the **status code plus output slots 0–5** for every fixture and every fuzz-corpus input. Divergence on any input fails the test.
+Parity is defined on the **status code plus output slots 0–6** for every fixture and every fuzz-corpus input. Divergence on any input fails the test.
 
 ## Testing
 
@@ -179,7 +182,8 @@ Parity is defined on the **status code plus output slots 0–5** for every fixtu
 
 ### Resolved
 1. ✅ Mints and owner are not checked per frame. They are validated at boot and on revalidation.
-2. ✅ Parity is on status code plus slots 0–5, exact equality.
+2. ✅ Parity is on status code plus slots 0–6, exact equality.
+3. ✅ Length is checked against a minimum, not an exact size. An unexpected size is flagged, not rejected.
 
 ### Deferred
 1. A sliced-layout variant if `dataSlice` turns out to be supported on subscriptions (see `ingest-sources.md`).

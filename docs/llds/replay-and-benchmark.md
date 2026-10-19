@@ -25,6 +25,15 @@ Principles:
 
 Output: `fixtures/session-<date>.ndjson.gz`, where each line is `{t, kind, venue, address?, body}`, plus a header line with markets, program ids, recorder version, and source commit. The default committed fixture is held to under about 10 MB gzipped. Record-time verification decodes every account frame with both decoders and with each venue's official SDK (`@orca-so/whirlpools-core`, `@raydium-io/raydium-sdk-v2`, dev dependencies of the recorder only), and refuses to write a fixture whose decoders disagree with the SDK.
 
+### Fixture coverage
+
+The committed fixture has to cover the committed `markets.json`. If someone edits the markets file without re-recording, replay mode would fail pool validation at boot. Two guards prevent that:
+
+- **CI check:** `pnpm fixtures:check` verifies that every pool and mint in `markets.json` has a boot snapshot and at least one account frame in the fixture. It fails with the missing addresses listed.
+- **Replay server:** if asked to subscribe or snapshot an address the fixture doesn't contain, it answers `getMultipleAccounts` with `null` and logs `error` *"fixture does not cover <address>; run pnpm record"*. The service then treats the pool as missing (fatal at boot, `misconfigured` after boot).
+
+The README tells anyone editing `markets.json` to re-run `pnpm record`.
+
 ## Replay Server (`apps/replay`)
 
 A standalone Node process, and the only component allowed to know it is fake. It serves:

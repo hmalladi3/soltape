@@ -85,6 +85,11 @@ A route entry includes `legs: [{ pool, price, slot, ageMs }]`. A warm-restored v
 
 This endpoint reads consolidated history from Postgres, bucketed with `date_bin`. Each bucket returns `open`, `high`, `low`, `close`, and `samples`.
 
+- The response is `{ mint, symbol, from, to, bucket, clamped, buckets: [...] }`. `from` and `to` are the effective range actually queried.
+- Buckets with no samples are **omitted**, not zero-filled, so a gap in the data shows up as a gap in the series.
+- A `window` reaching back past retention is clamped to the oldest retained day, with `clamped: true`. That is not an error.
+- No data in range → `200` with `buckets: []`.
+
 - `window`: up to the retention period.
 - `bucket`: one of `1s, 10s, 1m, 5m, 1h`.
 - The result may contain at most 2,000 buckets, and `400` if exceeded.
@@ -111,6 +116,8 @@ This is the only endpoint that touches a database. It has its own query timeout 
 | `down` | 503 | No market has an eligible source |
 | `stopping` | 503 | Shutdown is in progress |
 
+Pools marked `misconfigured` (see `ingest-sources.md`) are listed under `misconfigured: [{ pool, venue, reason }]` and make the status at least `degraded`.
+
 A `disabled` source doesn't make the service degraded, because it was intentionally not configured. A Redis or Postgres outage shows up in `dependencies` and doesn't change `status` either, because the feed doesn't depend on them (HLD Goal 3).
 
 ## WebSocket Protocol (`/ws`)
@@ -121,7 +128,7 @@ All messages are JSON text frames, with `permessage-deflate` disabled.
 
 | Message | Effect |
 |---|---|
-| `{"op":"subscribe","mints":["SOL","<mint>"]}` | Adds the mints. Replies with `subscribed` and one `snapshot` per mint |
+| `{"op":"subscribe","mints":["SOL","<mint>"]}` | Adds the mints. Replies with `subscribed`, then per mint a `snapshot`, or `unavailable` if that market currently has no consolidated price |
 | `{"op":"unsubscribe","mints":[…]}` | Removes the mints. Replies with `unsubscribed` |
 | `{"op":"subscribe","mints":["*"]}` | Subscribes to every tracked mint |
 | `{"op":"ping"}` | Replies with `pong` (application-level, for browsers that can't send protocol pings) |
@@ -134,6 +141,11 @@ All messages are JSON text frames, with `permessage-deflate` disabled.
 | `unavailable` | `{"type":"unavailable","mint":…, "lastKnown":…}`, sent when a market loses all eligible sources |
 | `subscribed` / `unsubscribed` | `{"type":"subscribed","mints":[resolved mint addresses]}` |
 | `error` | `{"type":"error","code":"INVALID_MINT","message":…}` |
+
+**Subscribe semantics:**
+- Subscribing to an already-subscribed mint is a no-op: no duplicate snapshot and no error.
+- If a request contains invalid or untracked entries, the valid ones are applied and listed in `subscribed`, and **one** `error` message lists the rejected entries with a reason each (`{"type":"error","code":"INVALID_MINTS","rejected":[{"mint":"…","reason":"MINT_NOT_TRACKED"}]}`). A partly invalid request counts as **one** strike, not one per entry.
+- Unsubscribing from a mint that isn't subscribed is a no-op.
 
 `trigger` lets a consumer, and the benchmark, attribute each update to the source frame that caused it (see `replay-and-benchmark.md`). `seq` in `data` increases per mint, so a client can detect conflation gaps (`seq` jumps), which are expected and not an error.
 

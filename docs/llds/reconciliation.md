@@ -36,7 +36,9 @@ Each market has at most one **observation per venue** (orca, raydium, jupiter). 
 | RPC venue | adapter state is `live` **and** `now − lastSlotNotificationTs ≤ SLOT_SILENCE_MS` | 2,000 ms (≈5 slots) |
 | Jupiter | adapter state is `live` **and** `now − lastSuccessfulPollTs ≤ JUPITER_SILENCE_MS` | 3 × poll interval (6,000 ms) |
 
-A source that is connected but past its threshold is `stale`, and the registry publishes that state transition. A source that stays stale longer than `RECONNECT_ON_STALE_MS` triggers the adapter's forced reconnect (see `ingest-sources.md`).
+A source that is connected but past its threshold is `stale`, and the registry publishes that state transition. A Jupiter poll carrying the ingest `lagging` flag (its `blockId` is too far behind the RPC slot head) also makes Jupiter `stale`, until a poll arrives without the flag.
+
+**Hysteresis:** a source moving from `stale` or `down` back to `live` must **stay** live for `RECOVERY_HOLD_MS` (default 1,000 ms) before its observations become eligible again. While it is held, its observations report reason `source_recovering`. Going stale takes effect immediately, while coming back is delayed. A source flapping around the threshold therefore can't toggle the consolidated price on every sweep, and losing a source is never delayed. A source that stays stale longer than `RECONNECT_ON_STALE_MS` triggers the adapter's forced reconnect (see `ingest-sources.md`).
 
 ## Observation Eligibility
 
@@ -45,10 +47,12 @@ An observation is **eligible** only if all of the following hold, checked in thi
 | # | Check | Reason code |
 |---|---|---|
 | 1 | Source configured | `source_disabled` |
+| 1b | Pool (or every route leg) passed validation | `misconfigured` |
 | 2 | Observation ever received since boot | `no_data` |
 | 3 | Source live (registry) | `source_down` / `source_stale` |
 | 4 | Not suspect (last frame for this pool decoded cleanly) | `decode_error` |
 | 5 | Age ≤ hard expiry: `now − recvTs ≤ OBS_MAX_AGE_MS` (default 60 s) | `expired` |
+| 5b | Normalized price is finite and > 0; size, if present, is finite and ≥ 0 | `invalid_value` |
 | 6 | Not an outlier (below) | `outlier` |
 
 For a route observation, every leg must pass checks 2–5. If one fails, its reason is reported with the failing leg named, e.g. `source_stale (leg 2)`.
@@ -58,6 +62,8 @@ Warm-restored values from Redis (see `persistence.md`) never satisfy check 2. `n
 **Why a hard expiry, given that liveness exists:** liveness proves the *connection* is healthy. A subscription that is dropped for one account while the connection stays up would otherwise look healthy forever. Revalidation (ingest) keeps quiet pools under the expiry, so only a truly dead feed for that pool hits it.
 
 ## Route Composition
+
+Both legs of a route must belong to the **same venue** as the route. Config validation rejects cross-venue routes, because attribution and liveness are per venue and a cross-venue route would merge two failure domains into one observation.
 
 A route `[leg1, leg2]` (e.g. JTO/SOL then SOL/USDC) gives `price = p(leg1) · p(leg2)`, where each leg's price is already decimal-adjusted and oriented. Attributes of a route observation:
 
@@ -98,7 +104,7 @@ The consolidation runs on every change to an input of a market (pool update, quo
    - `trigger`: `{ source, slot }` of the input that caused this evaluation.
 7. **Change detection:** emit only if `price`, the eligible set, the `excluded` reasons, `degraded`, or `disagreement` changed. A pool update at a new slot with an identical price emits nothing. This is the main suppressor of redundant fan-out. Each emission increments `seq`.
 
-The median of at most 3 is computed with a fixed compare-and-swap network, without allocating or calling `Array.sort`.
+**Median definition:** for an odd count, the middle value. For an even count, the mean of the two middle values (so two sources give the midpoint, matching step 3). It is computed in place over a preallocated scratch array with insertion sort, which is allocation-free and optimal for n ≤ 8. That covers today's 3 venues and leaves room for Phoenix and Drift. `Array.sort` isn't used.
 
 ## Sweep Timer
 
@@ -124,7 +130,9 @@ interface ConsolidatedListener { onConsolidated(mktIdx: number, c: Consolidated)
 | Route freshness | Min of legs (slot, recvTs) | Max; last updated leg | A composite price is only as fresh as its oldest input. |
 | Change detection | Emit on any change to price, eligible set, reasons, or flags | Emit on every input; epsilon threshold | Exact change keeps consumers' view correct, and conflation downstream handles rate. An epsilon would hide real moves and complicate tests. |
 | Time-based re-evaluation | Fixed 250 ms sweep | Per-observation timers | One timer, constant cost, predictable. Per-observation timers churn on every update. |
-| Hot-path data structures | Preallocated arrays indexed by integers, sorting network | Maps keyed by string, `Array.sort` | No allocation or hashing per tick. The input set is fixed at boot. |
+| Hot-path data structures | Preallocated arrays indexed by integers, in-place insertion sort | Maps keyed by string, `Array.sort` | No allocation or hashing per tick. The input set is fixed at boot. |
+| Recovery | 1 s hold before a recovered source counts again; going stale is immediate | Symmetric thresholds | Prevents flapping without ever delaying exclusion of a bad source. |
+| Routes | Same-venue legs only | Cross-venue routes | Keeps attribution and failure domains per venue. |
 
 ## Open Questions & Future Decisions
 

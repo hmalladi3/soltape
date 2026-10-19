@@ -62,7 +62,7 @@ This file declares what the feed tracks. It is committed, and the Docker image b
 }
 ```
 
-- **Shape checks.** Every pool or route must be priced in the quote unit, either directly or through a declared route (see `reconciliation.md`). Symbols must be unique. Mints and pools must be valid base58 32-byte keys.
+- **Shape checks.** Every pool or route must be priced in the quote unit, either directly or through a declared route (see `reconciliation.md`). A route's legs must belong to the route's venue. Symbols must be unique. Mints and pools must be valid base58 32-byte keys.
 - **Cross-check against the chain.** Ingest checks that each pool's on-chain mints match the declared market. A mismatch is a startup error naming the pool. A typo in a pool address must never become a silently wrong price.
 
 ## Dependency Injection
@@ -85,7 +85,7 @@ Awilix container, `InjectionMode.PROXY`, with a single composition root at `apps
 5. Warm restore: read the last snapshot from Redis, with a 500 ms deadline. Restored values are marked `restored: true` and are never eligible for consolidation (see `persistence.md`).
 6. Construct the reconciler and latest state.
 7. Start the HTTP + WebSocket server and listen. `/health` reports `starting`.
-8. Start the source adapters. Each adapter validates its pools (mint cross-check, decimals) before subscribing. A pool that fails validation is a startup error that exits 2. A *network* failure during validation is not a startup error: that adapter enters its reconnect loop and the others proceed.
+8. Start the source adapters. Each adapter validates its pools (mint cross-check, decimals) before subscribing. A pool that fails validation is a startup error that exits 2. A *network* failure during validation is not a startup error: that adapter enters its reconnect loop and the others proceed. If validation completes after boot and fails, the pool is marked `misconfigured` without exiting (see `ingest-sources.md`).
 9. Leave `starting` for `ok` or `degraded` once the first consolidated price exists for every market, or after a 15 s startup grace period, whichever comes first.
 
 ### Shutdown (SIGTERM / SIGINT)
@@ -117,7 +117,7 @@ A second signal during shutdown forces an immediate exit 1. Every timer and sock
 
 ### Resolved
 1. ✅ Persistence is never a startup dependency: the feed runs without Redis or Postgres.
-2. ✅ Pool validation failure (wrong mints) is fatal at startup. A network failure during validation is not.
+2. ✅ Pool validation failure (wrong mints) is fatal at startup. A network failure during validation is not. A failure found after boot marks the pool `misconfigured` instead of exiting, since a restart loop would take down healthy markets.
 
 ### Deferred
 1. Hot-reload of `markets.json` without restart. Not needed for scope.

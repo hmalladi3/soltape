@@ -74,7 +74,7 @@ Profiles pick which app variant runs. A committed `.env` sets `COMPOSE_PROFILES=
 
 | Job | Runs |
 |---|---|
-| `ts` | `pnpm install --frozen-lockfile`, lint, typecheck, Vitest unit tests (decoder runs as reference **and** native, via a prebuilt artifact from `rust`) |
+| `ts` | `pnpm install --frozen-lockfile`, lint, typecheck, `pnpm fixtures:check`, Vitest unit tests (decoder runs as reference **and** native, via a prebuilt artifact from `rust`) |
 | `rust` | fmt, clippy, `cargo test`, `napi build` → uploads the `.node` artifact |
 | `fuzz` | `cargo +nightly fuzz run` for each target, 60 s each, using the committed corpus. A crash uploads the reproducer and fails the job |
 | `parity` | Native vs reference over fixtures + corpus + fast-check (needs `rust` artifact) |

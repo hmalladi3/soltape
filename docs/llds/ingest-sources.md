@@ -48,7 +48,9 @@ There is one instance per on-chain venue, and each has **its own WebSocket conne
 
 1. `getMultipleAccounts` (HTTP, `base64`) for every pool of this venue.
 2. Each account is decoded with `decoder.decodeAccount(data, venue)`, which returns the full pool info: mints, decimals where present, sqrt price, liquidity, and tick.
-3. The account **owner** must equal the venue's program id, and the decoded mints must match the market or route leg declared in `markets.json`. Any mismatch is fatal (see `service-runtime.md`).
+3. The account **owner** must equal the venue's program id, and the decoded mints must match the market or route leg declared in `markets.json`. At boot, any mismatch is fatal (see `service-runtime.md`).
+   - **Validation after boot.** If the network was down at boot, validation happens on the first successful snapshot. A mismatch then marks the pool `misconfigured`: it is never subscribed, it is permanently ineligible, it is logged at `error`, and it is listed on `/health`. The service doesn't exit, since a crash-restart loop would take down every healthy market too.
+   - **Pool not found.** An account the RPC reports as `null` is handled the same way: at boot it is fatal, and after boot the pool is marked `misconfigured`.
 4. Mint decimals:
    - Raydium CLMM stores both decimals in the pool.
    - Whirlpool doesn't, so `getMultipleAccounts` on the mints reads SPL Mint `decimals` (byte offset 44). That offset is the same for Token-2022 mints, since the base layout is shared.
@@ -61,12 +63,15 @@ There is one instance per on-chain venue, and each has **its own WebSocket conne
 - `slotSubscribe` provides the venue's liveness heartbeat (HLD KDD-4). Slot notifications come every ~400 ms on a healthy connection.
 - `accountSubscribe(pool, { encoding: "base64", commitment })` for each pool.
 - Subscription confirmations (`{"result": <subId>, "id": <reqId>}`) map `subId → poolIndex` in a small `Map<number, number>`, which is rebuilt on every reconnect.
+- **Missing confirmation.** A subscribe request with no confirmation within `SUBSCRIBE_TIMEOUT_MS` (default 5 s) is retried for that pool only, up to 3 attempts, with the jittered backoff schedule.
+- **JSON-RPC error.** A subscribe request answered with a JSON-RPC error (for example, a subscription limit on the public RPC) takes the same per-pool retry path, and is counted by error code.
+- **Partial subscription.** After all retries, a pool that is still unconfirmed stays without data (`no_data`), and a background retry runs every 60 s. The venue goes `live` once `slotSubscribe` and **at least one** pool are confirmed. One rejected pool doesn't hold back the rest.
 
 ### Hot path
 
 Every WebSocket `message` event goes through these steps:
 
-1. `ws` delivers the frame as a `Buffer`, with no `toString` call.
+1. `ws` delivers the frame as a `Buffer`, with no `toString` call. The client socket sets `maxPayload` to 64 KiB, so a larger frame closes the connection (`1009`), which is counted and goes through normal reconnect. The largest legitimate frame, a Raydium `PoolState`, is about 2.2 KB.
 2. `kind = decoder.decodeNotification(buf, out)`. `out` is one preallocated `Float64Array` per adapter (see `frame-decoder.md`).
 3. Branch on `kind`:
    - **`ACCOUNT`:** look up `poolIndex` from the subscription id (an unknown id is counted and ignored), then call `sink.onPoolUpdate(poolIndex, out[SQRT], out[LIQ], out[SLOT], recvTs)`.
@@ -74,7 +79,7 @@ Every WebSocket `message` event goes through these steps:
    - **`OTHER`:** cold path. `JSON.parse` the frame and handle subscription confirmations and JSON-RPC errors.
    - **Negative (decode error):** count by code, log with rate limiting, and mark the pool *suspect* if the subscription id was recoverable (`out[SUB] ≥ 0`). The decoder writes the subscription id before failing on payload errors where it can.
 
-`recvTs` is taken with `performance.now()` as the first statement in the handler (see `telemetry.md`).
+`recvTs` is taken with `performance.now()` as the first statement in the handler, alongside `recvWall = Date.now()` for the wall-clock `receivedAt`. Neither allocates, and neither is derived from the other (see `telemetry.md`).
 
 ### Slot ordering
 
@@ -85,6 +90,9 @@ Per pool, an update whose slot is **lower** than the last accepted slot is dropp
 A pool with no notification for `REVALIDATE_AFTER_MS` (default 20 s) is re-read with `getMultipleAccounts`, batched across all quiet pools of the venue.
 
 - **Read succeeds:** the result is emitted as a normal update at its slot. Unchanged data at a newer slot is exactly what proves a quiet pool is still correct.
+- **Read from a lagging node.** The public RPC load-balances across nodes, so a revalidation read can come back at a slot **lower** than the last accepted one.
+  - **Byte-identical data:** the read is a *refresh*. The observation's `recvTs` and `recvWall` are updated, but its slot is not moved backwards. The account is provably still in the accepted state.
+  - **Different data at a lower slot:** the read is discarded as `out_of_order`.
 - **Read fails:** nothing is emitted, and the observation ages toward its hard expiry (see `reconciliation.md`).
 - **Rate:** at most one revalidation batch per venue in flight at a time.
 
@@ -115,6 +123,7 @@ Enabled only when `JUPITER_API_KEY` is set. Otherwise it is constructed in the `
 - **Validation:** the response goes through a zod schema, `Record<mint, { usdPrice: number > 0, blockId?: number | null, decimals?: number }>`. Each entry is validated on its own. An entry that fails, or that is missing, means no update for that mint this round, and that observation ages normally. A response where the whole body fails validation counts as a failed poll.
 - **Quote conversion (HLD KDD-6):** `priceInUsdc = usdPrice[mint] / usdPrice[USDC]`, using both values from the same response. If the USDC entry is missing or invalid, the whole poll yields no updates, because nothing can be converted.
 - **Slot:** `blockId` is used when present, otherwise `null`.
+- **Lag versus the chain:** when `blockId` is present, it is compared with the highest slot seen from any RPC venue's `slotSubscribe`. If Jupiter is more than `JUPITER_MAX_SLOT_LAG` (default 150 slots, about 60 s) behind, its quotes from that poll are reported with a `lagging` flag. The registry treats that as `source_stale` (see `reconciliation.md`). Without any RPC slot reference (both on-chain venues down), the check is skipped.
 - **Liveness:** each successful poll calls `sink.onSlot('jupiter', blockId ?? null, recvTs)`. Liveness for Jupiter means "the last successful poll is recent" (see `reconciliation.md`).
 - **States:** the first success moves `connecting → live`. A failure marks `down` only after `JUPITER_FAILS_TO_DOWN` (default 3) consecutive failures, since one timeout is noise.
 - **429 handling:** honour `Retry-After`, and otherwise double the interval up to 30 s. The interval decays back after successes.

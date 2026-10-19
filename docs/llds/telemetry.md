@@ -14,6 +14,8 @@ HLD refs: KDD-10, Goal 5.
 
 `process.hrtime.bigint()` allocates a `BigInt` per call. On a path stamped four times per tick, that is avoidable GC pressure, so the hot path uses `performance.now()`. `hrtime.bigint()` is reserved for the benchmark harness, which needs a clock shared across processes (see `replay-and-benchmark.md`).
 
+Wall-clock time (`receivedAt`, persisted `ts`) comes from `Date.now()`, taken at the same moment as `t0`. It is never derived from `performance.timeOrigin + performance.now()`, because the two clocks drift apart over a long uptime, and NTP corrections apply to one of them but not the other.
+
 ### Stages
 
 | Stamp | Taken at | Where it's held |

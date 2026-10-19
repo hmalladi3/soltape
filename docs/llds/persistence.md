@@ -48,7 +48,7 @@ At boot, the service runs `HGETALL` for every configured market, with an overall
 
 - Restored entries are loaded into the reconciler's **display state only**, with `restored: true` and `stale: true`, and they never become eligible.
 - REST `/price` for a market with only restored data returns `503 NO_ELIGIBLE_SOURCES` with `lastKnown` set to the restored value. Clients get "here's what it was" immediately on boot instead of nothing.
-- Missing, malformed, or wrong-schema entries are ignored and counted.
+- Missing, malformed, or wrong-schema entries are ignored and counted. That includes mints or sources no longer in `markets.json` after a config change. Restore only reads keys for currently configured markets, and ignores `src:` fields for sources not currently configured.
 
 ## Postgres: Rolling History
 
@@ -91,13 +91,16 @@ CREATE TABLE consolidated (
   - ensures partitions exist for today plus the next 2 days (`CREATE TABLE IF NOT EXISTS … PARTITION OF … FOR VALUES FROM … TO …`);
   - drops partitions entirely older than `HISTORY_RETENTION_DAYS`.
 - A `DEFAULT` partition catches rows that fall outside every daily partition, for example after clock skew. The task counts its rows and logs them, and it never drops the `DEFAULT` partition.
+- **The DEFAULT-partition trap.** Postgres refuses to create a partition whose range overlaps rows already in `DEFAULT`. That would happen if the database was down when the next day's partition was due. Two rules prevent it:
+  - Maintenance runs **every time a history sink transitions to `up`, before its first flush** (as well as at boot and hourly), so partitions exist before rows arrive.
+  - If `DEFAULT` already holds rows in a range about to be created, maintenance moves them in one transaction: create the new table standalone, move the matching rows from `DEFAULT` into it (`DELETE … RETURNING` feeding an `INSERT`), then `ATTACH PARTITION`.
 - Maintenance takes a Postgres advisory lock, so two instances, if ever run, don't race.
 
 ### Write policy: bounded batch writer
 
 - **Two in-memory ring buffers**, one for observations and one for consolidated rows. Each holds `PG_QUEUE_MAX` rows (default 50,000).
 - **Flush trigger:** a buffer reaches `PG_BATCH_ROWS` (default 1,000), or `PG_FLUSH_MS` (default 250 ms) elapses with rows pending.
-- **Insert method:** a multi-row parameterized `INSERT … VALUES (…),(…)`, through the `pg` pool (`max: 4`). There is one flush in flight per table at a time.
+- **Insert method:** a multi-row parameterized `INSERT … VALUES (…),(…)`, through the `pg` pool (`max: 4`, `connectionTimeoutMillis: 2000`, `statement_timeout: 5000` ms). There is one flush in flight per table at a time. The timeouts mean a hung or unreachable database fails a flush within seconds instead of tying up the pool.
 - **Overflow:** when a buffer is full, the **oldest** row is dropped and `soltape_persist_dropped_total{sink}` is incremented. Recent history is worth more than old history to a live system.
 - **Failure:** a failed batch is retried once after 1 s. If the retry fails, the batch is dropped and counted, and the sink is marked `down` until a later batch succeeds. Retrying forever would let a dead database pin memory.
 
