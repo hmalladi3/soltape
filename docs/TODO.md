@@ -2,18 +2,20 @@
 
 ## In progress
 
-- Phase 2: 9 LLDs drafted in `docs/llds/`; LLD edge-case probe presented, waiting on triage
+- Phase 3: EARS specs drafted in `docs/specs/` (260 active, 13 deferred); in user review
 
 ## Up next
 
-- Phase 3: EARS specs in `docs/specs/` per LLD
+- Phase 4: intent-narrowing edge audit (cross-spec / cross-segment)
+- Phase 5: tests first
 
 ## Waiting on the user
 
-- Triage the LLD edge-case probe (fix in the LLD vs. defer)
+- Review EARS specs
 
 ## Done
 
+- 2026-10-19: LLD edge-case probe: all 19 resolutions applied
 - 2026-10-19: HLD approved
 - 2026-10-19: HLD gains KDD-12 (reviewable locally via Docker + GH Actions; no hosting, no credentials, optional Jupiter key, replay mode, GHCR image, live page)
 - 2026-10-19: Architecture option A chosen (Node orchestration + in-process napi-rs decoder)
