@@ -103,6 +103,7 @@ export class Reconciler implements SourceSink {
   private readonly pSeen: Uint8Array;
   private readonly pSuspect: Uint8Array;
   private readonly pMisconf: Uint8Array;
+  private readonly pMisconfReason = new Map<number, string>();
   /** 10^(decimalsA - decimalsB) per pool. */
   private readonly pScale: Float64Array;
 
@@ -302,9 +303,10 @@ export class Reconciler implements SourceSink {
   }
 
   // @spec REC-POOL-004
-  onPoolMisconfigured(pool: number): void {
+  onPoolMisconfigured(pool: number, reason = 'failed validation'): void {
     if (this.frozen) return;
     this.pMisconf[pool] = 1;
+    this.pMisconfReason.set(pool, reason);
     this.reevaluatePool(pool);
   }
 
@@ -378,6 +380,11 @@ export class Reconciler implements SourceSink {
 
   isPoolMisconfigured(pool: number): boolean {
     return this.pMisconf[pool] === 1;
+  }
+
+  /** Pools marked misconfigured, with the validation message (for /health). */
+  misconfiguredPools(): { pool: string; venue: SourceId; reason: string }[] {
+    return [...this.pMisconfReason].map(([i, reason]) => ({ pool: this.model.pools[i]!.address, venue: this.model.pools[i]!.venue, reason }));
   }
 
   suppressedCount(market: number): number {

@@ -2,11 +2,13 @@
 
 ## In progress
 
-- Wave 3: API gateway (REST, WebSocket fan-out, live page) + real HTTP server in the composition root
+- Wave 4: persistence (Redis latest snapshot + Postgres history via testcontainers); back /history and /health dependencies
 
 ## Up next
 
-- Wave 4: persistence (testcontainers); wave 5: telemetry; wave 6: replay + bench; wave 7: delivery (Docker, compose, CI)
+- Phase 7 candidate: internal p50 ≈ 450 µs on live frames: one SOL/USDC update fans out to 5 markets (every route uses that leg); profile the per-emission cost (JSON serialization, observation views) before optimizing
+- Wave 7: compose host port must be configurable (port 8080 is taken by another container on this machine)
+- Wave 5: telemetry; wave 6: replay + bench; wave 7: delivery (Docker, compose, CI)
 - Record the first mainnet session fixture (`pnpm record`) once the recorder exists (wave 6)
 
 ## Waiting on the user
@@ -14,6 +16,7 @@
 
 ## Done
 
+- 2026-10-19: Wave 3 (REST, health, stats, WebSocket gateway with conflation and slow-client eviction, live page with per-source deviation strip): 379 tests green; API-* specs [x]; live page verified in Chrome against mainnet
 - 2026-10-19: Wave 2 (ingest adapters, RPC HTTP client, two-phase market model, runtime lifecycle, Awilix composition root, main): 330 tests green; ING-* and RUN-* specs [x]; live mainnet smoke: all 5 markets priced 1.0 s after cold start, SOL spread 0.7 bps across venues
 - 2026-10-19: Fixed SOL/USDC pools (were low-TVL picks from memory): Orca Czfq3x… ($28.7M TVL), Raydium 3ucNos… ($7.6M TVL); fixtures refetched
 - 2026-10-19: Wave 1 (decoder, reconciliation, config, market model): 263 TS + 7 Rust tests green; DEC/REC/RUN-CFG/RUN-DEC specs marked [x]; informal decoder microbench on M4: native 1.09M frames/s p99.9 1.37us vs reference 279k/s p99.9 9.0us

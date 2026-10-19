@@ -29,7 +29,7 @@ export class RecordingSink implements SourceSink {
   onPoolSuspect(pool: number): void {
     this.events.push({ t: 'suspect', pool });
   }
-  onPoolMisconfigured(pool: number): void {
+  onPoolMisconfigured(pool: number, _reason?: string): void {
     this.events.push({ t: 'misconfigured', pool });
   }
   sourceStatus(): SourceStatus {

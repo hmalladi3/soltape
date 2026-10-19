@@ -50,7 +50,7 @@ const int = (min: number, max: number) =>
 
 /** One schema entry per variable: env name → config key, parser, default. */
 const vars = {
-  PORT: ['port', int(1, 65535)],
+  PORT: ['port', int(0, 65535)],
   RPC_HTTP_URL: ['rpcHttpUrl', url('http:', 'https:')],
   RPC_WS_URL: ['rpcWsUrl', url('ws:', 'wss:')],
   RPC_COMMITMENT: ['rpcCommitment', z.enum(['processed', 'confirmed', 'finalized'])],

@@ -19,7 +19,7 @@ const resources = () => process.getActiveResourcesInfo().filter((r) => r !== 'TT
 it('leaves no timers, sockets or handles behind after shutdown', async () => {
   await sleep(20);
   const before = resources();
-  const cfg = loadConfig({ RPC_HTTP_URL: rpc.httpUrl, RPC_WS_URL: rpc.wsUrl, DECODER: 'native' }, testMarkets());
+  const cfg = loadConfig({ RPC_HTTP_URL: rpc.httpUrl, RPC_WS_URL: rpc.wsUrl, DECODER: 'native', PORT: '0' }, testMarkets());
   if (!cfg.ok) throw new Error(cfg.errors.join());
   const exits: number[] = [];
   const c = createAppContainer(cfg.value, { logger: asValue(silentLogger), exit: asValue((code: number) => void exits.push(code)) });

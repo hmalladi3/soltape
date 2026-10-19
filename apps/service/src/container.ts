@@ -1,6 +1,10 @@
 import { selectDecoder, type DecoderSelection, type FrameDecoder } from '@soltape/decoder';
 import { systemClock, type Clock } from '@soltape/shared';
 import { asFunction, asValue, createContainer, InjectionMode, type AwilixContainer, type Resolver } from 'awilix';
+import { WsGateway } from './api/gateway.js';
+import type { DependencyStatus } from './api/health.js';
+import type { HistoryReader } from './api/history.js';
+import { ApiServer } from './api/server.js';
 import type { Config } from './config/load.js';
 import { JupiterAdapter } from './ingest/jupiter-adapter.js';
 import { RpcHttpClient, type RpcHttp } from './ingest/rpc-http.js';
@@ -8,8 +12,9 @@ import { RpcVenueAdapter } from './ingest/rpc-adapter.js';
 import { buildSkeleton, type MarketModel } from './markets/model.js';
 import { Reconciler } from './reconcile/reconciler.js';
 import { DEFAULT_THRESHOLDS, type ReconcileThresholds } from './reconcile/types.js';
-import { noPersistence, noServer } from './runtime/placeholders.js';
+import { noPersistence } from './runtime/placeholders.js';
 import { PhaseHolder, ServiceRuntime, type PersistenceLifecycle, type RuntimeOptions, type ServerLifecycle, type Startable } from './runtime/runtime.js';
+import { LatencyWindow } from './telemetry/latency.js';
 import { createLogger, type Logger } from './telemetry/logger.js';
 
 /** Everything the composition root registers. Seams can be overridden (RUN-DI-003). */
@@ -28,6 +33,10 @@ export interface Cradle {
   jupiterAdapter: Startable;
   adapters: Startable[];
   persistence: PersistenceLifecycle;
+  dependencies: DependencyStatus;
+  history: HistoryReader | undefined;
+  latency: LatencyWindow;
+  gateway: WsGateway;
   server: ServerLifecycle;
   phase: PhaseHolder;
   exit: (code: number) => void;
@@ -63,6 +72,12 @@ export function createAppContainer(config: Config, overrides: Overrides = {}): A
     }),
     thresholds: asValue(DEFAULT_THRESHOLDS),
     reconciler: s(({ model, clock, thresholds }) => new Reconciler({ model, clock, thresholds })),
+    latency: s(({ clock }) => new LatencyWindow(clock)),
+    gateway: s(({ model, reconciler, clock, logger, latency }) => {
+      const g = new WsGateway({ model, source: reconciler, clock, logger, latency });
+      reconciler.setListeners({ gateway: g });
+      return g;
+    }),
     rpcHttp: s(({ config, clock }) => new RpcHttpClient({ url: config.env.rpcHttpUrl, commitment: config.env.rpcCommitment, timeoutMs: 5000, clock })),
     orcaAdapter: s((d) => rpcAdapter(d, 'orca')),
     raydiumAdapter: s((d) => rpcAdapter(d, 'raydium')),
@@ -76,7 +91,12 @@ export function createAppContainer(config: Config, overrides: Overrides = {}): A
       jupiterAdapter,
     ]),
     persistence: asValue(noPersistence),
-    server: asValue(noServer),
+    dependencies: asValue({ redis: () => 'down', postgres: () => 'down' } satisfies DependencyStatus),
+    history: asValue(undefined),
+    server: s(
+      ({ config, model, reconciler, gateway, phase, clock, logger, decoder, dependencies, latency, history }) =>
+        new ApiServer({ port: config.env.port, model, reconciler, gateway, phase, clock, logger, decoderImpl: decoder.impl, dependencies, latency, ...(history ? { history } : {}) }),
+    ),
     phase: s(() => new PhaseHolder()),
     exit: asValue((code: number) => process.exit(code)),
     runtimeOptions: asValue({}),

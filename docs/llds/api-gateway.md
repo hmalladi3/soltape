@@ -171,6 +171,12 @@ All messages are JSON text frames, with `permessage-deflate` disabled.
 
 **Why poll `bufferedAmount`:** `ws` doesn't emit a per-socket drain event. A 10 ms timer that only visits congested clients costs nothing when clients are healthy, and with one slot per market, pending memory per client is bounded by `markets × ~400 B`.
 
+**Implementation notes:**
+- **Congestion is sticky until the low-water mark.** Once a client is congested, every update (price or `unavailable`) goes to its pending slot until `bufferedAmount` falls to the low-water mark. Sending directly while older frames are pending would deliver one market's updates out of order.
+- **Control replies bypass conflation.** `subscribed`, `error`, and `pong` are never conflated, because they are answers rather than market data.
+- **Text frames.** The shared `Buffer` is sent with `{ binary: false }`, so clients receive text frames.
+- **Kernel buffers absorb a burst first.** The server only sees congestion once the kernel's socket buffer (several MB on localhost) is full. A consumer that stops reading is therefore detected under a continuous feed, not from a single burst. The tests reproduce exactly that.
+
 Memory bound: per client, at most `WS_HIGH_WATER + markets × frameSize`. With 1,000 clients that is about 256 MiB in the worst case, at which point clients are disconnected. The bound is stated in the README.
 
 ## Live Page
@@ -178,6 +184,8 @@ Memory bound: per client, at most `WS_HIGH_WATER + markets × frameSize`. With 1
 `apps/service/public/index.html` is a single file with inline CSS and JS, no framework, and no build step. Express serves it statically.
 
 - On load it fetches `GET /mints` and opens `/ws` with `subscribe ["*"]`.
+- **Design.** A cool slate palette (light and dark), system sans with tabular numerals, no web fonts (replay mode must work offline), and no framework. The one distinctive element is a **deviation strip** in each row: every source plotted as a dot by its distance in bps from the consolidated price (±50 bps scale), with excluded sources drawn hollow. Labels alternate above and below the axis, so neighbouring sources never collide. The strip shows reconciliation at work, which a plain price table cannot.
+- The per-source data for the strips comes from polling `GET /sources/:mint` once per second for every market. That costs one cheap in-memory read per market per second, and keeps the WebSocket protocol free of a page-specific message.
 - It shows a table with one row per market: consolidated price (highlighted on change), contributing and excluded sources with reason badges, spread, a degraded indicator, slot, and time since the last update.
 - Clicking a row expands it into a per-source breakdown from `GET /sources/:mint`, refreshed every second while open.
 - A header strip polls `GET /stats` every second and shows the internal p50/p99/p99.9 receive→send latency, update rate, connected sources, and decoder implementation (`native`/`reference`).

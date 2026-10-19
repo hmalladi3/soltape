@@ -198,7 +198,8 @@ export class RpcVenueAdapter {
     for (const i of bad) {
       if (this.misconfigured.has(i)) continue;
       this.misconfigured.add(i);
-      this.d.sink.onPoolMisconfigured(i);
+      const addr = this.d.model.pools[i]!.address;
+      this.d.sink.onPoolMisconfigured(i, problems.find((p) => p.message.includes(addr))?.message ?? 'failed validation');
     }
     if (problems.length) this.log.error({ problems }, 'pools misconfigured; excluded from subscription');
     this.validated = true;

@@ -104,7 +104,7 @@ export interface SourceSink {
   onSlot(source: SourceId, slot: number | null, recvTs: number): void;
   onSourceState(source: SourceId, state: 'disabled' | 'connecting' | 'live' | 'down'): void;
   onPoolSuspect(pool: number): void;
-  onPoolMisconfigured(pool: number): void;
+  onPoolMisconfigured(pool: number, reason?: string): void;
 }
 
 export interface ReconcileThresholds {
