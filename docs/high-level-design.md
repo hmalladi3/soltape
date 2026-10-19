@@ -38,6 +38,16 @@ Market data is last-value-wins. Every buffer in the hot path (per-mint state, pe
 
 The WebSocket push to clients happens first. The Redis write is fire-and-forget, and the Postgres history is written in batches. A slow or unavailable database degrades history, never the live feed.
 
+### Reviewable with zero hosting
+
+There is no hosted deployment and nothing to pay for. A reviewer can experience the system at three levels of effort:
+
+- **Browse only.** The CI badge links to the Actions run. Its job summary shows test results and the replay benchmark's latency table, all rendered by GitHub with no setup.
+- **One command, no credentials.** `docker compose up` pulls a prebuilt image and serves live mainnet prices from the public RPC. `docker compose --profile replay up` runs the full system offline against recorded frames.
+- **Reproduce the numbers.** `pnpm bench` replays recorded traffic and prints the p99 along with the machine specs.
+
+Everything the reviewer touches sits outside the hot path or runs in a separate mode, so none of it costs live-feed performance.
+
 ## Target Users
 
 - **Trading and analytics services** that want one reconciled Solana spot price per mint with a published latency profile, without writing three venue integrations themselves.
@@ -51,13 +61,15 @@ The WebSocket push to clients happens first. The Redis write is fire-and-forget,
 3. **Graceful degradation.** Losing any one source, or any two, keeps the feed serving from what remains, clearly flagged. Losing Redis or Postgres never interrupts the live feed.
 4. **Never crashes on bad input.** Malformed JSON, truncated accounts, unexpected layouts, and garbage frames are rejected, counted, and logged, never thrown into the event loop.
 5. **Observable.** A Prometheus `/metrics` endpoint shows per-source update rate, ingest latency, staleness, decode errors, event-loop delay, and WebSocket fan-out lag.
-6. **One-command deploy.** `docker compose up` starts the app, Redis, and Postgres. The native addon is compiled inside the image build.
+6. **One-command deploy.** `docker compose up` starts the app, Redis, and Postgres. It pulls a prebuilt multi-arch image, and the Dockerfile still builds everything, including the native addon, from source.
+7. **Reviewable in five minutes at zero cost.** No credentials are needed to run it. An offline replay mode always works. A built-in live page shows the feed. See KDD-12.
 
 ## Non-Goals
 
 - **No trading.** No order placement, wallets, private keys, signing, or funds. The service is read-only.
 - **No smart-contract deployment** and no on-chain writes.
 - **No authentication or multi-tenancy.** It runs on localhost or a trusted network.
+- **No hosting of any kind.** No deployed instance, no Pages site, no Vercel/Fly/Render, no paid infrastructure. It runs locally via Docker, and GitHub Actions is the only remote compute (CI and image builds to GHCR).
 - **No paid data.** No Yellowstone/Geyser gRPC and no paid RPC tiers. The ingest abstraction lets a Geyser source plug in later, but nothing depends on one.
 - **No multi-region HA or leader election.** One ingesting process. Redis makes horizontal read replicas possible but they are not built.
 - **No settlement-grade correctness.** Prices come from `processed` commitment and can, rarely, reflect a slot that is later skipped. This is a market-data feed, not an oracle.
@@ -119,6 +131,8 @@ flowchart LR
 | **REST API** | Express 5 routes reading from latest state: `GET /price/:mint`, `GET /sources/:mint`, `GET /health`, `GET /metrics`. |
 | **Persistence** | A Redis latest-value writer (for warm restart and future read replicas) and a batched Postgres history writer with time-partitioned retention. |
 | **Telemetry** | pino structured logs, prom-client metrics, stage timestamps carried on every tick. |
+| **Live page** | A static, framework-free HTML page served at `/`. It is a plain WebSocket client of the gateway: a per-mint table of consolidated and per-source prices, stale and excluded flags, and live latency percentiles. |
+| **Recorder & replay harness** | `pnpm record` captures real mainnet RPC frames and Jupiter responses into committed fixtures. The replay server stands in for the RPC endpoint and Jupiter at a controlled rate. It powers replay mode, the benchmark, and integration tests. It is a separate process and never runs inside the service. |
 
 ### Unified tick schema
 
@@ -160,6 +174,8 @@ For each mint: the median of the eligible (fresh, non-rejected) observations, th
 ### KDD-3: Sources: Jupiter + Orca Whirlpool + Raydium CLMM, two of them decoded on-chain
 
 **Chosen:** Jupiter Price API v3 (HTTPS poll), plus Orca Whirlpool and Raydium CLMM pool accounts decoded directly from RPC `accountSubscribe`. Stretch goal: a Phoenix market account for real order-book depth.
+
+Jupiter is **optional**. Its API (`api.jup.ag`) requires a free key, and the keyless `lite-api` host is deprecated. It turns on only when `JUPITER_API_KEY` is set. Without a key, `/health` reports it as *disabled*, not *failed*, and the two on-chain sources run on the keyless public RPC.
 
 **Alternatives:** Venue REST APIs for Orca and Raydium (easier, but slower, rate-limited, and no on-chain work); Pyth price accounts (an oracle, not a venue, and it would make reconciliation circular).
 
@@ -238,6 +254,38 @@ For each mint: the median of the eligible (fresh, non-rejected) observations, th
 
 **Why:** Live mainnet rates are too low and too uneven to stress the system. Replay makes the p99 reproducible and lets the load be pushed until it breaks, and the breaking point is the honest throughput number. Event-loop delay (`monitorEventLoopDelay`) is exported so a reader can see when the event loop itself becomes the bottleneck.
 
+### KDD-12: Reviewable in five minutes, at zero hosting cost
+
+**Chosen:**
+- **No credentials by default.** On-chain sources use the public mainnet RPC. Jupiter and a custom RPC URL are optional environment variables.
+- **Two run modes.**
+  - `docker compose up` serves live mainnet.
+  - `docker compose --profile replay up` runs the unchanged service against the replay server, fully offline. It works when the public RPC is rate-limited or down.
+- **A prebuilt image.** GitHub Actions builds a multi-arch (amd64 + arm64) image and publishes it to GHCR, so a reviewer never waits on a Rust compile.
+- **CI on every push.**
+  - TypeScript typecheck and lint, then unit tests.
+  - Rust tests and a time-boxed fuzz run.
+  - Rust/TS decoder comparison.
+  - Integration tests against real Postgres and Redis via testcontainers.
+  - A short replay benchmark.
+- **CI results in the job summary.** The benchmark writes its p50/p99/p99.9 table and the Rust-vs-TS decoder comparison to `$GITHUB_STEP_SUMMARY`, and the raw HDR histograms are uploaded as artifacts.
+- **No-Docker development.** `pnpm dev` with only Node and pnpm. If the native addon isn't built, the TS reference decoder takes over, so contributors don't need Rust.
+- **Offline tests.** Unit and decoder tests run on committed fixtures. Integration tests need only Docker.
+
+**Alternatives:**
+- *A free-tier hosted deployment or static demo site* (Fly.io, Render, Vercel, Pages): something to configure and maintain, outside the brief. The server free tiers also sleep, cap resources, and change terms. A cold-started, throttled instance would make the latency story look worse than the local run, and it is an ongoing thing to babysit.
+- *Live-only mode:* the demo would depend on a public RPC that rate-limits and has outages.
+
+**Why:**
+- A reviewer gives a repo a few minutes. Each level, from browsing to one command to reproducing the numbers, works on its own, so even the lowest-effort look shows the system running.
+- Performance cost is none:
+  - The live page is one more WebSocket subscriber, and the gateway is built for 1k.
+  - Static files are served by Express outside the hot path.
+  - Replay is a separate process.
+  - CI never touches a running service.
+
+**Caveat:** GitHub-hosted runners are shared VMs with noisy neighbours. CI benchmark numbers are for spotting regressions only. The headline README numbers come from a documented local machine, and both are labelled that way.
+
 ### KDD-11: Stack
 
 | Choice | Over | Why |
@@ -267,7 +315,8 @@ For each mint: the median of the eligible (fresh, non-rejected) observations, th
   - Fuzzed frames never crash the process.
   - *Falsification:* any crash, unhandled rejection, or silently stale price served as fresh.
 - **Correctness:** decoded on-chain prices match each venue's own SDK price on recorded fixtures to within float tolerance, and the Rust and TS decoders agree exactly on the same fixtures.
-- **Deployability:** a fresh clone runs with `docker compose up` and shows live prices without manual steps.
+- **Deployability:** a fresh clone with only Docker installed shows live prices at `http://localhost:<port>/` within five minutes of `docker compose up`, with no credentials and no Rust compile. Replay mode does the same with the network disconnected.
+- **Reviewability:** the CI badge (linking to a job summary with the benchmark table) is at the top of the README, and `pnpm bench` in replay mode reproduces the README's p99 within a tolerance stated next to the numbers. *Falsification:* any step in the README that requires a sign-up, a paid service, or an undocumented manual action.
 
 ## FAQ
 
@@ -279,7 +328,7 @@ For each mint: the median of the eligible (fresh, non-rejected) observations, th
 
 - Orca Whirlpools program and account layout: `whirLbMiicVdio4qvUfM5KAg6Ct8VwpYzGff3uctyCc`
 - Raydium CLMM program and `PoolState` layout: `CAMMCzo5YL8w4VFF8KVHrK22GGUsp5VTaW7grrKgrWqK`
-- Jupiter Price API v3 documentation
+- Jupiter Price API v3 documentation: https://developers.jup.ag/docs/price/v3 (an API key is required on `api.jup.ag`; the `lite-api` host is deprecated)
 - Solana JSON-RPC WebSocket API: `accountSubscribe`, `slotSubscribe`
 - napi-rs documentation
 - HdrHistogram (Gil Tene): coordinated omission and latency measurement
