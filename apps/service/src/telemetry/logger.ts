@@ -10,9 +10,13 @@ export interface Logger {
   child(bindings: Record<string, unknown>): Logger;
 }
 
-/** Structured JSON logs to stdout via an asynchronous destination (OBS-LOG-001). */
-export function createLogger(level: string): Logger {
-  return pino({ level, base: { service: 'soltape' } }, pino.destination({ sync: false }));
+/**
+ * Structured JSON logs to stdout via an asynchronous destination. Components log through
+ * `child({ component })`, so every line carries `component`.
+ * @spec OBS-LOG-001, OBS-LOG-004
+ */
+export function createLogger(level: string, destination: pino.DestinationStream = pino.destination({ sync: false })): Logger {
+  return pino({ level, base: { service: 'soltape' } }, destination);
 }
 
 /** Discards everything; for tests and tools. */

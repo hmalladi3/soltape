@@ -17,6 +17,7 @@ import { PgHistory } from './persistence/pg-history.js';
 import { RedisLatestStore } from './persistence/redis-latest.js';
 import { PhaseHolder, ServiceRuntime, type PersistenceLifecycle, type RuntimeOptions, type ServerLifecycle, type Startable } from './runtime/runtime.js';
 import { LatencyWindow } from './telemetry/latency.js';
+import { Telemetry } from './telemetry/metrics.js';
 import { createLogger, type Logger } from './telemetry/logger.js';
 
 /** Everything the composition root registers. Seams can be overridden (RUN-DI-003). */
@@ -24,6 +25,7 @@ export interface Cradle {
   config: Config;
   clock: Clock;
   logger: Logger;
+  telemetry: Telemetry;
   decoderSelection: DecoderSelection;
   decoder: FrameDecoder;
   model: MarketModel;
@@ -65,9 +67,12 @@ export function createAppContainer(config: Config, overrides: Overrides = {}): A
     config: asValue(config),
     clock: asValue(systemClock),
     logger: s(({ config }) => createLogger(config.env.logLevel)),
+    telemetry: s(() => new Telemetry()),
     decoderSelection: s(({ config, logger }) => {
       const sel = selectDecoder(config.env.decoder);
-      if (sel.fallbackReason) logger.warn({ reason: sel.fallbackReason }, 'native decoder unavailable; using TypeScript reference decoder');
+      const log = logger.child({ component: 'runtime' });
+      if (sel.fallbackReason) log.warn({ reason: sel.fallbackReason }, 'native decoder unavailable; using TypeScript reference decoder');
+      else log.info({ decoder: sel.decoder.impl }, 'decoder selected');
       return sel;
     }),
     decoder: s(({ decoderSelection }) => decoderSelection.decoder),
@@ -77,36 +82,61 @@ export function createAppContainer(config: Config, overrides: Overrides = {}): A
       return r.value;
     }),
     thresholds: asValue(DEFAULT_THRESHOLDS),
-    reconciler: s(({ model, clock, thresholds }) => new Reconciler({ model, clock, thresholds })),
+    reconciler: s(({ model, clock, thresholds, logger }) => new Reconciler({ model, clock, thresholds, logger })),
     latency: s(({ clock }) => new LatencyWindow(clock)),
-    gateway: s(({ model, reconciler, clock, logger, latency }) => new WsGateway({ model, source: reconciler, clock, logger, latency })),
+    gateway: s(({ model, reconciler, clock, logger, latency, telemetry }) => new WsGateway({ model, source: reconciler, clock, logger, latency, telemetry })),
     rpcHttp: s(({ config, clock }) => new RpcHttpClient({ url: config.env.rpcHttpUrl, commitment: config.env.rpcCommitment, timeoutMs: 5000, clock })),
     orcaAdapter: s((d) => rpcAdapter(d, 'orca')),
     raydiumAdapter: s((d) => rpcAdapter(d, 'raydium')),
     jupiterAdapter: s(
-      ({ model, reconciler, clock, logger, config }) =>
-        new JupiterAdapter({ model, sink: reconciler, clock, logger, url: config.env.jupiterUrl, apiKey: config.env.jupiterApiKey }),
+      ({ model, reconciler, clock, logger, config, telemetry }) =>
+        new JupiterAdapter({ model, sink: reconciler, clock, logger, telemetry, url: config.env.jupiterUrl, apiKey: config.env.jupiterApiKey }),
     ),
     adapters: s(({ model, orcaAdapter, raydiumAdapter, jupiterAdapter }) => [
       ...(model.pools.some((p) => p.venue === 'orca') ? [orcaAdapter] : []),
       ...(model.pools.some((p) => p.venue === 'raydium') ? [raydiumAdapter] : []),
       jupiterAdapter,
     ]),
-    redisStore: s(({ config, model, reconciler, clock, logger }) => new RedisLatestStore({ url: config.env.redisUrl, model, source: reconciler, clock, logger })),
+    redisStore: s(({ config, model, reconciler, clock, logger, telemetry }) => new RedisLatestStore({ url: config.env.redisUrl, model, source: reconciler, clock, logger, telemetry })),
     pgHistory: s(
-      ({ config, model, clock, logger }) =>
-        new PgHistory({ url: config.env.databaseUrl, model, clock, logger, options: { retentionDays: config.env.historyRetentionDays } }),
+      ({ config, model, clock, logger, telemetry }) =>
+        new PgHistory({ url: config.env.databaseUrl, model, clock, logger, telemetry, options: { retentionDays: config.env.historyRetentionDays } }),
     ),
     persistence: s(({ redisStore, pgHistory, reconciler }) => new Persistence({ redisStore, history: pgHistory, restoreInto: (e) => reconciler.restore(e) })),
     dependencies: s(({ persistence }) => persistence as unknown as DependencyStatus),
     history: s(({ pgHistory }) => pgHistory),
-    wiring: s(({ reconciler, gateway, persistence, redisStore, pgHistory }) => {
+    wiring: s(({ model, reconciler, gateway, persistence, redisStore, pgHistory, telemetry, orcaAdapter, raydiumAdapter, jupiterAdapter }) => {
       reconciler.setListeners({ gateway, persistence: persistence as Persistence, observations: [redisStore, pgHistory] });
+      telemetry.registerCollectors({
+        model,
+        reconciler,
+        gateway,
+        adapters: { rpc: [orcaAdapter as RpcVenueAdapter, raydiumAdapter as RpcVenueAdapter], jupiter: jupiterAdapter as JupiterAdapter },
+        persistence: {
+          queueDepth: (sink) => (sink === 'redis' ? redisStore.pending() : pgHistory.queueDepth(sink)),
+          dropped: (sink) => pgHistory.stats.dropped[sink],
+          state: (sink) => (sink === 'redis' ? redisStore.state() : pgHistory.state()),
+        },
+      });
       return true as const;
     }),
     server: s(
-      ({ config, model, reconciler, gateway, phase, clock, logger, decoder, dependencies, latency, history }) =>
-        new ApiServer({ port: config.env.port, model, reconciler, gateway, phase, clock, logger, decoderImpl: decoder.impl, dependencies, latency, ...(history ? { history } : {}) }),
+      ({ config, model, reconciler, gateway, phase, clock, logger, decoder, dependencies, latency, history, telemetry }) =>
+        new ApiServer({
+          port: config.env.port,
+          model,
+          reconciler,
+          gateway,
+          phase,
+          clock,
+          logger,
+          decoderImpl: decoder.impl,
+          dependencies,
+          latency,
+          metrics: () => telemetry.scrape(),
+          httpMetrics: telemetry,
+          ...(history ? { history } : {}),
+        }),
     ),
     phase: s(() => new PhaseHolder()),
     exit: asValue((code: number) => process.exit(code)),
@@ -121,8 +151,9 @@ export function createAppContainer(config: Config, overrides: Overrides = {}): A
   return c;
 }
 
-function rpcAdapter({ model, config, reconciler, decoder, rpcHttp, clock, logger }: Cradle, venue: 'orca' | 'raydium'): Startable {
+function rpcAdapter({ model, config, reconciler, decoder, rpcHttp, clock, logger, telemetry }: Cradle, venue: 'orca' | 'raydium'): Startable {
   return new RpcVenueAdapter({
+    telemetry,
     venue,
     model,
     markets: config.markets,

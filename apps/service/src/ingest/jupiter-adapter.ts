@@ -3,7 +3,9 @@ import { Agent, fetch as undiciFetch } from 'undici';
 import { z } from 'zod';
 import type { MarketModel } from '../markets/model.js';
 import type { SourceSink } from '../reconcile/types.js';
+import { noTelemetry, type TelemetryHooks } from '../telemetry/hooks.js';
 import type { Logger } from '../telemetry/logger.js';
+import { RateLimitedLog } from '../telemetry/rate-limit.js';
 import { retryAfterMs } from './backoff.js';
 
 export interface JupiterOptions {
@@ -24,6 +26,7 @@ export interface JupiterAdapterDeps {
   apiKey: string | undefined;
   options?: Partial<JupiterOptions>;
   fetch?: typeof fetch;
+  telemetry?: TelemetryHooks;
 }
 
 const entrySchema = z.object({
@@ -40,11 +43,13 @@ const bodySchema = z.record(z.string(), z.unknown());
  */
 export class JupiterAdapter {
   readonly id = 'jupiter' as const;
-  readonly stats = { polls: 0, failures: 0, rateLimited: 0 };
+  readonly stats = { polls: 0, failures: 0, rateLimited: 0, updates: 0 };
 
   private readonly d: JupiterAdapterDeps;
   private readonly o: JupiterOptions;
   private readonly log: Logger;
+  private readonly limited: RateLimitedLog;
+  private readonly tel: TelemetryHooks;
   private readonly ids: string;
   private interval: number;
   private consecutiveFailures = 0;
@@ -59,6 +64,8 @@ export class JupiterAdapter {
     this.d = deps;
     this.o = { ...DEFAULT_JUPITER_OPTIONS, ...deps.options };
     this.log = deps.logger.child({ component: 'ingest', source: 'jupiter' });
+    this.limited = new RateLimitedLog(this.log, deps.clock);
+    this.tel = deps.telemetry ?? noTelemetry;
     this.interval = this.o.intervalMs;
     const mints = deps.model.markets.filter((m) => m.venues.some((v) => v.venue === 'jupiter')).map((m) => m.mint);
     this.ids = [...mints, deps.model.quote.mint].join(',');
@@ -77,6 +84,7 @@ export class JupiterAdapter {
 
   async stop(): Promise<void> {
     this.stopped = true;
+    this.limited.stop();
     clearTimeout(this.timer);
     await this.inflight;
     await this.agent.close();
@@ -98,6 +106,7 @@ export class JupiterAdapter {
   private async poll(): Promise<void> {
     this.stats.polls++;
     const f = this.d.fetch ?? (undiciFetch as unknown as typeof fetch);
+    const t0 = this.d.clock.mono();
     let res: Response;
     try {
       res = await f(`${this.d.url}?ids=${this.ids}`, {
@@ -110,6 +119,7 @@ export class JupiterAdapter {
     }
     const recvTs = this.d.clock.mono();
     const recvWall = this.d.clock.wall();
+    this.tel.request('jupiter', 'jupiter_poll', recvTs - t0);
     if (res.status === 429) {
       this.stats.rateLimited++;
       await res.body?.cancel();
@@ -159,6 +169,7 @@ export class JupiterAdapter {
       if (!m.venues.some((v) => v.venue === 'jupiter')) continue;
       const e = entry(m.mint);
       if (!e) continue;
+      this.stats.updates++;
       this.d.sink.onQuote(m.index, e.usdPrice / quote.usdPrice, e.blockId ?? null, recvTs, recvWall);
     }
   }
@@ -166,7 +177,7 @@ export class JupiterAdapter {
   private failed(reason: string): void {
     this.stats.failures++;
     this.consecutiveFailures++;
-    this.log.debug({ reason, consecutive: this.consecutiveFailures }, 'Jupiter poll failed');
+    this.limited.warn('poll_failed', reason, { reason, consecutive: this.consecutiveFailures }, 'Jupiter poll failed');
     if (this.consecutiveFailures >= this.o.failsToDown && this.state !== 'down') {
       this.state = 'down';
       this.d.sink.onSourceState('jupiter', 'down');

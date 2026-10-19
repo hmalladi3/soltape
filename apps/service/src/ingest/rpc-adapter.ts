@@ -3,7 +3,9 @@ import type { Clock, MarketsFile, PoolVenue } from '@soltape/shared';
 import WebSocket from 'ws';
 import { poolAddresses, resolveVenue, type MarketModel } from '../markets/model.js';
 import type { SourceSink, SourceStatus } from '../reconcile/types.js';
+import { noTelemetry, type TelemetryHooks } from '../telemetry/hooks.js';
 import type { Logger } from '../telemetry/logger.js';
+import { RateLimitedLog } from '../telemetry/rate-limit.js';
 import { fullJitter } from './backoff.js';
 import type { RpcFailure, RpcHttp } from './rpc-http.js';
 import { validateVenuePools, type PoolProblem } from './validate.js';
@@ -66,6 +68,7 @@ export interface RpcAdapterDeps {
   logger: Logger;
   options?: Partial<RpcAdapterOptions>;
   random?: () => number;
+  telemetry?: TelemetryHooks;
 }
 
 export type ReconnectCause = 'close' | 'ping_timeout' | 'stale' | 'snapshot';
@@ -79,6 +82,8 @@ interface Pending {
 
 /** Counters exported as metrics (telemetry.md). */
 export interface RpcAdapterStats {
+  /** Account notifications delivered to the reconciler. */
+  updates: number;
   decodeErrors: Map<number, number>;
   unknownSubscription: number;
   subscribeFailures: Map<string, number>;
@@ -94,12 +99,14 @@ export interface RpcAdapterStats {
  */
 export class RpcVenueAdapter {
   readonly id: PoolVenue;
-  readonly stats: RpcAdapterStats = { decodeErrors: new Map(), unknownSubscription: 0, subscribeFailures: new Map(), reconnects: new Map() };
+  readonly stats: RpcAdapterStats = { updates: 0, decodeErrors: new Map(), unknownSubscription: 0, subscribeFailures: new Map(), reconnects: new Map() };
 
   private readonly d: RpcAdapterDeps;
   private readonly o: RpcAdapterOptions;
   private readonly random: () => number;
   private readonly log: Logger;
+  private readonly limited: RateLimitedLog;
+  private readonly tel: TelemetryHooks;
   private readonly out = new Float64Array(OUT_LEN);
   /** Pool indexes of this venue, and those excluded as misconfigured. */
   private readonly venuePools: number[];
@@ -136,6 +143,8 @@ export class RpcVenueAdapter {
     this.o = { ...DEFAULT_RPC_OPTIONS, ...deps.options };
     this.random = deps.random ?? Math.random;
     this.log = deps.logger.child({ component: 'ingest', source: deps.venue });
+    this.limited = new RateLimitedLog(this.log, deps.clock);
+    this.tel = deps.telemetry ?? noTelemetry;
     this.venuePools = deps.model.pools.filter((p) => p.venue === deps.venue).map((p) => p.index);
     this.lastHeard = new Float64Array(deps.model.pools.length);
   }
@@ -155,6 +164,7 @@ export class RpcVenueAdapter {
 
   async stop(): Promise<void> {
     this.stopped = true;
+    this.limited.stop();
     this.clearConnectionTimers();
     clearTimeout(this.reconnectTimer);
     for (const t of this.backgroundTimers) clearTimeout(t);
@@ -275,6 +285,7 @@ export class RpcVenueAdapter {
     clearTimeout(p.timer);
     this.pending.delete(id);
     this.stats.subscribeFailures.set(code, (this.stats.subscribeFailures.get(code) ?? 0) + 1);
+    this.limited.warn('subscribe_failed', code, { code }, 'subscription request failed');
     const ws = this.ws;
     if (p.attempt < this.o.subscribeRetries) {
       const delay = fullJitter(p.attempt, this.o.backoffBaseMs, this.o.backoffCapMs, this.random);
@@ -305,12 +316,14 @@ export class RpcVenueAdapter {
     const status = this.d.decoder.decodeNotification(buf, out);
     if (status === Status.ACCOUNT) {
       const decodedTs = this.d.clock.mono();
+      this.tel.decode(this.id, decodedTs - recvTs);
       const pool = this.subToPool.get(out[Out.SUB]!);
       if (pool === undefined) {
         this.stats.unknownSubscription++;
         return;
       }
       this.lastHeard[pool] = recvTs;
+      this.stats.updates++;
       if (out[Out.SIZE_UNEXPECTED] === 1 && !this.warnedSize.has(out[Out.LAYOUT]!)) {
         this.warnedSize.add(out[Out.LAYOUT]!);
         this.log.warn({ layout: out[Out.LAYOUT], pool: this.d.model.pools[pool]!.address }, 'account size differs from documented layout size');
@@ -322,6 +335,7 @@ export class RpcVenueAdapter {
       this.onControl(buf);
     } else {
       this.stats.decodeErrors.set(status, (this.stats.decodeErrors.get(status) ?? 0) + 1);
+      this.limited.warn('decode_error', String(status), { code: status }, 'frame rejected by decoder');
       const pool = out[Out.SUB]! >= 0 ? this.subToPool.get(out[Out.SUB]!) : undefined;
       if (pool !== undefined) this.d.sink.onPoolSuspect(pool);
     }
@@ -375,7 +389,9 @@ export class RpcVenueAdapter {
   private async readPools(pools: number[], kind: 'snapshot' | 'revalidation'): Promise<boolean> {
     if (pools.length === 0) return true;
     const addresses = pools.map((p) => this.d.model.pools[p]!.address);
+    const t0 = this.d.clock.mono();
     const r = await this.d.rpcHttp.getMultipleAccounts(addresses);
+    this.tel.request(this.id, kind === 'snapshot' ? 'snapshot' : 'revalidate', this.d.clock.mono() - t0);
     if (!r.ok) {
       this.noteFailure(r.failure);
       this.log.warn({ failure: r.failure, kind }, 'pool read failed');

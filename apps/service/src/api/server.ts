@@ -32,6 +32,8 @@ export interface ApiServerDeps {
   history?: HistoryReader;
   /** Prometheus text exposition (wave 5 telemetry); empty until wired. */
   metrics?: () => Promise<{ contentType: string; body: string }>;
+  /** HTTP request metrics (soltape_http_requests_total, soltape_http_request_seconds). */
+  httpMetrics?: { httpRequests: { inc(labels: { route: string; status: string }): void }; httpSeconds: { observe(labels: { route: string }, v: number): void } };
   maxPayload?: number;
 }
 
@@ -95,6 +97,14 @@ export class ApiServer implements ServerLifecycle {
     app.set('etag', false);
     app.use((req, res, next) => {
       res.locals['requestId'] = randomUUID();
+      const t0 = d.clock.mono();
+      res.on('finish', () => {
+        if (!d.httpMetrics) return;
+        // Route templates only (e.g. /price/:mint): label values stay bounded (OBS-MET-007).
+        const route = (req.route as { path?: string } | undefined)?.path ?? (res.statusCode === 404 ? 'unmatched' : 'static');
+        d.httpMetrics.httpRequests.inc({ route, status: String(res.statusCode) });
+        d.httpMetrics.httpSeconds.observe({ route }, (d.clock.mono() - t0) / 1000);
+      });
       next();
     });
 

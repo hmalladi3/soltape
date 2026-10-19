@@ -1,5 +1,6 @@
 import type { Clock, SourceId, SourceState } from '@soltape/shared';
 import type { MarketModel, VenueObservationDef } from '../markets/model.js';
+import { silentLogger, type Logger } from '../telemetry/logger.js';
 import type {
   Consolidated,
   ConsolidatedListener,
@@ -19,6 +20,7 @@ export interface ReconcilerDeps {
   model: MarketModel;
   clock: Clock;
   thresholds: ReconcileThresholds;
+  logger?: Logger;
 }
 
 /** Reason codes as small integers for allocation-free change detection. 0 = eligible. */
@@ -81,6 +83,7 @@ export class Reconciler implements SourceSink {
   private readonly t: ReconcileThresholds;
   /** 1 - 1/sqrt(1 + band): depth factor for a one-sided move of `depthBand`. */
   private readonly depthK: number;
+  private readonly log: Logger;
 
   private gateway: ConsolidatedListener | undefined;
   private persistence: ConsolidatedListener | undefined;
@@ -145,7 +148,8 @@ export class Reconciler implements SourceSink {
   /** Median scratch (no allocation). */
   private readonly scratch = new Float64Array(16);
 
-  constructor({ model, clock, thresholds }: ReconcilerDeps) {
+  constructor({ model, clock, thresholds, logger }: ReconcilerDeps) {
+    this.log = (logger ?? silentLogger).child({ component: 'reconciler' });
     this.model = model;
     this.clock = clock;
     this.t = thresholds;
@@ -391,6 +395,23 @@ export class Reconciler implements SourceSink {
     return this.mSuppressed[market]!;
   }
 
+  /** Consolidated updates emitted for a market (its current seq). */
+  emittedCount(market: number): number {
+    return this.mSeq[market]!;
+  }
+
+  /**
+   * RPC venue slot lag: highest slot seen on its slot stream minus the slot of its most recent
+   * account update. Null for Jupiter or before both are known.
+   */
+  slotLag(source: SourceId): number | null {
+    if (source === 'jupiter') return null;
+    const s = this.src[SRC_INDEX[source]]!;
+    let latest = Number.NEGATIVE_INFINITY;
+    for (const p of this.model.pools) if (p.venue === source && this.pSeen[p.index] === 1 && this.pSlot[p.index]! > latest) latest = this.pSlot[p.index]!;
+    return Number.isNaN(s.lastSlot) || !Number.isFinite(latest) ? null : Math.max(0, s.lastSlot - latest);
+  }
+
   outOfOrderCount(source: SourceId): number {
     return this.src[SRC_INDEX[source]]!.outOfOrder;
   }
@@ -419,6 +440,7 @@ export class Reconciler implements SourceSink {
         next = now - ref <= this.t.slotSilenceMs ? 'live' : 'stale';
       }
       if (next === 'live' && (prev === 'stale' || prev === 'down')) s.holdStart = now;
+      if (next !== prev) this.log.info({ source: SOURCES[i], from: prev, to: next }, 'source state changed');
       if (next === 'stale' && prev !== 'stale') s.staleSince = now;
       else if (next !== 'stale') s.staleSince = null;
       s.judged = next;
@@ -579,6 +601,7 @@ export class Reconciler implements SourceSink {
 
     if (eligible === 0) {
       if (this.mAvailable[market] === 1) {
+        this.log.warn({ mint: m.mint, symbol: m.symbol }, 'market unavailable: no eligible source');
         this.mAvailable[market] = 0;
         this.mEmitted[market] = 0;
         const lastKnown = this.mLast[market] ? { ...this.mLast[market], stale: true as const } : null;
@@ -604,6 +627,7 @@ export class Reconciler implements SourceSink {
     }
 
     for (let v = 0; v < n; v++) this.sigReason[base + v] = this.oReason[base + v]! * 16 + this.oLeg[base + v]!;
+    if (this.mAvailable[market] === 0 && this.mSeq[market]! > 0) this.log.info({ mint: m.mint, symbol: m.symbol }, 'market available again');
     this.mEmitted[market] = 1;
     this.mAvailable[market] = 1;
     this.mLastPrice[market] = price;

@@ -5,6 +5,7 @@ import type { Bucket, HistoryBucket, HistoryReader } from '../api/history.js';
 import { BUCKETS } from '../api/history.js';
 import type { MarketModel } from '../markets/model.js';
 import type { Consolidated, ConsolidatedListener, ObservationListener, ObservationView } from '../reconcile/types.js';
+import { noTelemetry, type TelemetryHooks } from '../telemetry/hooks.js';
 import type { Logger } from '../telemetry/logger.js';
 import { migrate } from './migrations.js';
 import { DAY_MS, maintainPartitions, startOfDayUtc, type MaintenanceReport } from './partitions.js';
@@ -105,7 +106,7 @@ export class PgHistory implements ConsolidatedListener, ObservationListener, His
   private readonly log: Logger;
 
   constructor(
-    private readonly d: { url: string; model: MarketModel; clock: Clock; logger: Logger; options?: Partial<PgHistoryOptions> },
+    private readonly d: { url: string; model: MarketModel; clock: Clock; logger: Logger; telemetry?: TelemetryHooks; options?: Partial<PgHistoryOptions> },
   ) {
     this.o = { ...DEFAULT_PG_OPTIONS, ...d.options };
     this.log = d.logger.child({ component: 'persistence', sink: 'postgres' });
@@ -136,6 +137,10 @@ export class PgHistory implements ConsolidatedListener, ObservationListener, His
 
   pending(): number {
     return this.queues.pg_observations.size + this.queues.pg_consolidated.size;
+  }
+
+  queueDepth(table: Table): number {
+    return this.queues[table].size;
   }
 
   /** Connects, migrates and maintains partitions in the background; retries until it works. */
@@ -226,8 +231,10 @@ export class PgHistory implements ConsolidatedListener, ObservationListener, His
       if (attempt > 0) await new Promise((r) => setTimeout(r, this.o.retryDelayMs));
       try {
         if (!this.up && !(await this.ensureReady())) continue;
+        const t0 = this.d.clock.mono();
         if (table === 'pg_observations') await this.db.insert(observations).values(batch as ObservationRow[]);
         else await this.db.insert(consolidated).values(batch as ConsolidatedRow[]);
+        (this.d.telemetry ?? noTelemetry).flush(table, this.d.clock.mono() - t0);
         return true;
       } catch (err) {
         this.log.debug({ err, table, attempt }, 'history insert failed');

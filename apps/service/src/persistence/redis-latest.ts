@@ -2,6 +2,7 @@ import type { Clock } from '@soltape/shared';
 import { Redis } from 'ioredis';
 import type { MarketModel } from '../markets/model.js';
 import type { Consolidated, ConsolidatedListener, ObservationListener, ObservationView, RestoredMarket } from '../reconcile/types.js';
+import { noTelemetry, type TelemetryHooks } from '../telemetry/hooks.js';
 import type { Logger } from '../telemetry/logger.js';
 import { restConsolidated } from '../api/views.js';
 
@@ -40,7 +41,7 @@ export class RedisLatestStore implements ConsolidatedListener, ObservationListen
   private readonly log: Logger;
 
   constructor(
-    private readonly d: { url: string; model: MarketModel; source: LatestStateSource; clock: Clock; logger: Logger; options?: Partial<RedisLatestOptions> },
+    private readonly d: { url: string; model: MarketModel; source: LatestStateSource; clock: Clock; logger: Logger; telemetry?: TelemetryHooks; options?: Partial<RedisLatestOptions> },
   ) {
     this.o = { ...DEFAULT_REDIS_OPTIONS, ...d.options };
     this.log = d.logger.child({ component: 'persistence', sink: 'redis' });
@@ -64,6 +65,11 @@ export class RedisLatestStore implements ConsolidatedListener, ObservationListen
 
   state(): 'up' | 'down' {
     return this.redis.status === 'ready' ? 'up' : 'down';
+  }
+
+  /** Markets waiting for the next flush. */
+  pending(): number {
+    return this.dirtyCount;
   }
 
   /** Connects in the background and starts the flush timer. Never throws. */
@@ -104,6 +110,7 @@ export class RedisLatestStore implements ConsolidatedListener, ObservationListen
       return;
     }
     this.flushing = true;
+    const t0 = this.d.clock.mono();
     const markets: number[] = [];
     for (let m = 0; m < this.dirty.length; m++) if (this.dirty[m] === 1) markets.push(m);
     for (const m of markets) this.dirty[m] = 0;
@@ -124,6 +131,7 @@ export class RedisLatestStore implements ConsolidatedListener, ObservationListen
       if (res?.some(([err]) => err)) throw res.find(([err]) => err)![0]!;
       this.stats.flushes++;
       this.stats.written += markets.length;
+      (this.d.telemetry ?? noTelemetry).flush('redis', this.d.clock.mono() - t0);
     } catch (err) {
       for (const m of markets) this.mark(m);
       this.log.debug({ err }, 'redis flush failed; will retry');

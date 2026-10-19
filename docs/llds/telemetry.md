@@ -39,6 +39,14 @@ Wall-clock time (`receivedAt`, persisted `ts`) comes from `Date.now()`, taken at
   - **prom-client histograms** with fixed buckets `[5µs, 10µs, 25µs, 50µs, 100µs, 250µs, 500µs, 1ms, 2.5ms, 5ms, 10ms, 50ms]`, for `/metrics`.
   - **An HDR histogram** (`hdr-histogram-js`, 3 significant digits, 1 µs–10 s range) that is swapped every 10 s. It backs `/stats` and the live page's p50/p99/p99.9. Bucketed Prometheus histograms can't give an accurate p99.9 at microsecond scale, which HDR can.
 
+## Collection Model
+
+- **Hot path:** components only call `TelemetryHooks` (`decode`, `request`, `emitted`, `flush`). These are histogram observations on pre-resolved label children.
+- **Counters:** never incremented on the hot path. Each counter is *derived at scrape time* from statistics the components already keep (adapter `stats`, gateway `stats`, reconciler `emittedCount` / `suppressedCount` / `outOfOrderCount`), and the collector increments it by the delta since the last scrape, so counters stay monotonic.
+- **Gauges:** computed entirely at scrape time.
+- **HTTP metrics:** labelled by Express route template (`/price/:mint`), never by raw path, so label values stay bounded.
+- **Per-market metrics:** carry both `mint` and `symbol` labels. The values come from config, so cardinality doesn't grow.
+
 ## Metrics (`/metrics`)
 
 Metric names are fixed here, because the README and benchmark refer to them.

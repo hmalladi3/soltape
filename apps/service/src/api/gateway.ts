@@ -2,6 +2,7 @@ import type { Clock } from '@soltape/shared';
 import type { RawData, WebSocket } from 'ws';
 import type { MarketModel } from '../markets/model.js';
 import type { Consolidated, ConsolidatedListener, EmitStamps } from '../reconcile/types.js';
+import { noTelemetry, type TelemetryHooks } from '../telemetry/hooks.js';
 import type { LatencyWindow } from '../telemetry/latency.js';
 import type { Logger } from '../telemetry/logger.js';
 import { lookupMint } from './mint.js';
@@ -75,7 +76,7 @@ export class WsGateway implements ConsolidatedListener {
   private readonly log: Logger;
 
   constructor(
-    private readonly d: { model: MarketModel; source: SnapshotSource; clock: Clock; logger: Logger; latency?: LatencyWindow; options?: Partial<GatewayOptions> },
+    private readonly d: { model: MarketModel; source: SnapshotSource; clock: Clock; logger: Logger; latency?: LatencyWindow; telemetry?: TelemetryHooks; options?: Partial<GatewayOptions> },
   ) {
     this.o = { ...DEFAULT_GATEWAY_OPTIONS, ...d.options };
     this.subscribers = d.model.markets.map(() => []);
@@ -234,7 +235,14 @@ export class WsGateway implements ConsolidatedListener {
       const frame = Buffer.from(JSON.stringify({ type: 'price', data: restConsolidated(c), trigger: c.trigger }));
       for (let i = 0; i < subs.length; i++) this.enqueue(subs[i]!, market, frame);
     }
-    if (stamps.recvTs !== null) this.d.latency?.record(this.d.clock.mono() - stamps.recvTs);
+    const t3 = this.d.clock.mono();
+    const internal = stamps.recvTs === null ? null : t3 - stamps.recvTs;
+    if (internal !== null) this.d.latency?.record(internal);
+    const t = this.d.telemetry ?? noTelemetry;
+    const src = c.trigger.source;
+    const venue = src.startsWith('orca') ? 'orca' : src.startsWith('raydium') ? 'raydium' : src === 'jupiter' ? 'jupiter' : 'sweep';
+    const decoded = stamps.decodedTs ?? stamps.recvTs ?? stamps.reconciledTs;
+    t.emitted(venue, stamps.decodedTs !== null && stamps.recvTs !== null ? stamps.decodedTs - stamps.recvTs : null, stamps.reconciledTs - decoded, t3 - stamps.reconciledTs, internal);
   }
 
   // @spec API-WS-008
