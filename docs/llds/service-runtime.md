@@ -62,7 +62,7 @@ This file declares what the feed tracks. It is committed, and the Docker image b
 }
 ```
 
-- **Shape checks.** Every pool or route must be priced in the quote unit, either directly or through a declared route (see `reconciliation.md`). A route's legs must belong to the route's venue. Symbols must be unique. Mints and pools must be valid base58 32-byte keys.
+- **Shape checks.** Every pool or route must be priced in the quote unit, either directly or through a declared route (see `reconciliation.md`). A route's legs must belong to the route's venue. Symbols and market mints must be unique. Mints and pools must be valid base58 32-byte keys.
 - **Cross-check against the chain.** Ingest checks that each pool's on-chain mints match the declared market. A mismatch is a startup error naming the pool. A typo in a pool address must never become a silently wrong price.
 
 ## Dependency Injection
@@ -71,7 +71,7 @@ Awilix container, `InjectionMode.PROXY`, with a single composition root at `apps
 
 - **Every component is a class or factory** that takes its dependencies as a destructured object, e.g. `constructor({ config, logger, decoder })`. There are no decorators, no `reflect-metadata`, and no service locator calls outside the composition root.
 - **Lifetimes:** everything stateful is a `singleton`. Awilix scoped containers are not used per request, because nothing in the request path is request-scoped.
-- **Interfaces at the seams:** `PriceSource`, `FrameDecoder`, `LatestStore`, `HistorySink`, `Clock`. Integration tests build the same container and replace only the seams they fake, for example `asValue(fakeClock)` or a replay-backed source.
+- **Interfaces at the seams:** `PriceSource`, `FrameDecoder`, `LatestStore`, `HistorySink`, `Clock`. **All time is read through `Clock`** (`mono()` → `performance.now()`, `wall()` → `Date.now()` in production). That makes every liveness, expiry, backoff, and hold rule testable with a fake clock, and the extra call is inlined by V8. Integration tests build the same container and replace only the seams they fake, for example `asValue(fakeClock)` or a replay-backed source.
 - **Fatal wiring errors:** `container.resolve` of every singleton happens at boot, so a wiring error is a startup failure, not a 3 a.m. surprise.
 
 ## Lifecycle
@@ -91,10 +91,11 @@ Awilix container, `InjectionMode.PROXY`, with a single composition root at `apps
 ### Shutdown (SIGTERM / SIGINT)
 
 1. Mark `/health` as `stopping` and stop accepting new HTTP connections and WebSocket upgrades.
-2. Stop the source adapters, closing their sockets and clearing their timers.
-3. Close WebSocket clients with code `1001 Going Away`.
-4. Flush persistence with a 5 s deadline. Whatever remains unflushed is counted and logged.
-5. Close the Redis and Postgres clients, then exit 0.
+2. Freeze the reconciler: stop its sweep and its emissions (see `reconciliation.md` § Lifecycle).
+3. Stop the source adapters, closing their sockets and clearing their timers.
+4. Close WebSocket clients with code `1001 Going Away`.
+5. Flush persistence with a 5 s deadline. Whatever remains unflushed is counted and logged.
+6. Close the Redis and Postgres clients, then exit 0.
 
 A second signal during shutdown forces an immediate exit 1. Every timer and socket is owned by a component with a `stop()` method, so a clean shutdown leaves no open handles. Tests assert this.
 

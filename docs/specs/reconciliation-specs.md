@@ -5,10 +5,17 @@ LLD: `docs/llds/reconciliation.md`
 ## Source Liveness
 
 - [ ] **REC-LIVE-001**: While an RPC venue (Orca or Raydium) reports adapter state `live` and its last slot notification is at most 2,000 ms old, the reconciler shall treat that venue as live.
-- [ ] **REC-LIVE-002**: While Jupiter reports adapter state `live`, its last successful poll is at most 3× the configured (not backed-off) poll interval old, and its latest poll is not flagged `lagging`, the reconciler shall treat Jupiter as live.
+- [ ] **REC-LIVE-002**: Jupiter is live while all of the following hold: it reports adapter state `live`; its last successful poll is at most 3× the configured (not backed-off) poll interval old; and, where its latest poll carried a `blockId` and any RPC venue has reported a slot, that `blockId` is at most 150 slots behind the highest RPC venue slot seen. While these hold, the reconciler shall treat Jupiter as live.
 - [ ] **REC-LIVE-003**: While a source's adapter state is `live` but its liveness condition (REC-LIVE-001 or REC-LIVE-002) does not hold, the reconciler shall treat the source as `stale` and publish the state transition.
 - [ ] **REC-LIVE-004**: When a source changes from `stale` or `down` back to live, the reconciler shall keep that source's observations ineligible with reason `source_recovering` until the source has stayed live for 1,000 ms continuously.
 - [ ] **REC-LIVE-005**: When a source changes from live to `stale` or `down`, the reconciler shall make that source's observations ineligible immediately, with no hold period.
+
+## Pool State (owned by the reconciler)
+
+- [ ] **REC-POOL-001**: If a pool update (from notification, snapshot, or revalidation) carries a slot lower than the pool's last accepted slot, then the reconciler shall discard it and increment the out-of-order counter for that source, except as provided by REC-POOL-002.
+- [ ] **REC-POOL-002**: When a revalidation read for a pool returns a lower slot than the last accepted one, but the same sqrt ratio, liquidity, and tick as the pool's last accepted state, the reconciler shall refresh the pool's receive timestamps without changing its slot.
+- [ ] **REC-POOL-003**: When an adapter reports a pool as suspect, the reconciler shall mark it suspect, and shall clear the mark on that pool's next accepted update.
+- [ ] **REC-POOL-004**: When an adapter reports a pool as misconfigured, the reconciler shall mark it misconfigured for the rest of the process lifetime.
 
 ## Observation Normalization
 
@@ -43,9 +50,9 @@ LLD: `docs/llds/reconciliation.md`
   - an `excluded` list giving each other configured source with its reason
   - `spreadBps` as `(max − min) / median × 10⁴` over eligible observations
   - `slot` as the maximum slot among eligible on-chain observations
-  - `degraded` as true when fewer observations are eligible than the market has configured venues
-  - `trigger` as the source and slot of the input that caused the evaluation
-- [ ] **REC-CONS-006**: If a market has no eligible observations, then the reconciler shall mark the market `unavailable` and retain its last consolidated value for display with `stale: true`.
+  - `degraded` as true when fewer observations are eligible than the market has configured venues whose source is not `disabled`
+  - `trigger` as the input that caused the evaluation: `<venue>:<pool>` with the pool update's slot (also for route observations, where it names the leg pool that updated), `jupiter` with its `blockId`, or `sweep` with a null slot
+- [ ] **REC-CONS-006**: If a market has no eligible observations, then the reconciler shall mark the market `unavailable` and retain its last consolidated value for display with `stale: true`. Where the market was previously available, it shall emit an `unavailable` event.
 - [ ] **REC-CONS-007**: When a market's evaluation produces the same price, eligible set, exclusion reasons, `degraded`, and `disagreement` as its previous emission, the reconciler shall emit nothing and increment the suppressed-updates counter.
 - [ ] **REC-CONS-008**: When a market's evaluation differs from its previous emission in any field listed in REC-CONS-007, the reconciler shall increment that market's `seq` and emit the consolidated update.
 - [ ] **REC-CONS-009**: The reconciler shall compute medians in place over preallocated storage, without allocating or calling `Array.sort`.
@@ -53,8 +60,12 @@ LLD: `docs/llds/reconciliation.md`
 ## Sweep and Emission Order
 
 - [ ] **REC-SWP-001**: The reconciler shall re-evaluate source liveness and observation expiry every 250 ms, re-consolidating each market whose eligible set changed with trigger source `sweep`.
-- [ ] **REC-EMIT-001**: When a consolidated update is emitted, the reconciler shall invoke the WebSocket gateway listener before the persistence listener, synchronously and in that order.
+- [ ] **REC-EMIT-001**: When the reconciler emits a consolidated update or an `unavailable` event, it shall invoke the WebSocket gateway listener before the persistence listener, synchronously and in that order.
 - [ ] **REC-EMIT-002**: When an observation's price, eligibility, or reason changes, the reconciler shall notify observation listeners.
+
+## Lifecycle
+
+- [ ] **REC-LIFE-001**: When service shutdown begins, the reconciler shall stop its sweep timer and stop emitting events before any source adapter is stopped, so that shutdown never produces `degraded` or `unavailable` emissions.
 
 ## Deferred
 

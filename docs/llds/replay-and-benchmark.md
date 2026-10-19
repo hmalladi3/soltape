@@ -56,8 +56,9 @@ A standalone Node process, and the only component allowed to know it is fake. It
 
 The real market set gives only about 10 pools.
 
-- **Synthetic pools:** to reach N mints, the server clones real pool frames under synthetic addresses. The service runs with a generated `markets.bench.json` that declares the clones, and validates them against the replay's `getMultipleAccounts` exactly as on mainnet.
+- **Synthetic pools:** to reach N mints, the server clones real pool frames under synthetic **pool and mint** addresses. Market mints must be unique (see `service-runtime.md`), so the mint fields inside the cloned account bytes are rewritten, and synthetic mint accounts carrying the original decimals are served through `getMultipleAccounts`. The service runs with a generated `markets.bench.json` that declares the clones, and validates them exactly as on mainnet.
 - **Varied prices:** each clone's `sqrt_price` bytes are perturbed per frame, so updates aren't suppressed as no-change. The benchmark measures real updates, not suppression.
+- **Global slot clock:** in `rate` mode, every emitted account frame takes the next value of one global slot counter. Each `(pool, slot)` pair is therefore unique, which the benchmark's input→output join requires, and slots only ever increase, so the ordering guard never drops benchmark traffic. Slot notifications and Jupiter `blockId`s report the same counter. Without that, the registry's Jupiter lag check would see Jupiter far behind the inflated pool slots and mark it stale mid-benchmark.
 - **Pre-encoding:** frames for the whole schedule are pre-encoded into `Buffer`s before the run, including the base64 re-encode after perturbation and the slot rewrite. The send loop does no encoding, only `socket.send(buf)` at the scheduled time.
 - **Self-check:** before any run, the server measures its own maximum emit rate with a null sink. If that is below 3 × `R`, it refuses to run, so a slow generator can't pass itself off as service latency.
 

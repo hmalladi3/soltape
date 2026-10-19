@@ -77,23 +77,20 @@ Every WebSocket `message` event goes through these steps:
    - **`ACCOUNT`:** look up `poolIndex` from the subscription id (an unknown id is counted and ignored), then call `sink.onPoolUpdate(poolIndex, out[SQRT], out[LIQ], out[SLOT], recvTs)`.
    - **`SLOT`:** `sink.onSlot(id, out[SLOT], recvTs)`.
    - **`OTHER`:** cold path. `JSON.parse` the frame and handle subscription confirmations and JSON-RPC errors.
-   - **Negative (decode error):** count by code, log with rate limiting, and mark the pool *suspect* if the subscription id was recoverable (`out[SUB] ≥ 0`). The decoder writes the subscription id before failing on payload errors where it can.
+   - **Negative (decode error):** count by code, log with rate limiting, and report the pool as *suspect* to the reconciler if the subscription id was recoverable (`out[SUB] ≥ 0`). The reconciler holds the flag and clears it on the next accepted update. The decoder writes the subscription id before failing on payload errors where it can.
 
-`recvTs` is taken with `performance.now()` as the first statement in the handler, alongside `recvWall = Date.now()` for the wall-clock `receivedAt`. Neither allocates, and neither is derived from the other (see `telemetry.md`).
+`recvTs` is taken from the injected `Clock` (`performance.now()` in production) as the first statement in the handler, alongside `recvWall` (`Date.now()`) for the wall-clock `receivedAt`. Neither allocates, and neither is derived from the other (see `telemetry.md`).
 
 ### Slot ordering
 
-Per pool, an update whose slot is **lower** than the last accepted slot is dropped and counted (`out_of_order`). This prevents snapshot/notification races after a reconnect from moving the price backwards. An equal slot is accepted, because several transactions in the same slot can each update the account, and notifications for one slot arrive in order on a single connection.
+The adapter does **not** order or filter updates. Every snapshot, notification, and revalidation result is reported with its slot. The reconciler owns pool state, so it owns the ordering guard and the lagging-node refresh rule as well (see `reconciliation.md` § Pool State). Ingest reports facts; one place judges them.
 
 ### Revalidation of quiet pools
 
 A pool with no notification for `REVALIDATE_AFTER_MS` (default 20 s) is re-read with `getMultipleAccounts`, batched across all quiet pools of the venue.
 
 - **Read succeeds:** the result is emitted as a normal update at its slot. Unchanged data at a newer slot is exactly what proves a quiet pool is still correct.
-- **Read from a lagging node.** The public RPC load-balances across nodes, so a revalidation read can come back at a slot **lower** than the last accepted one.
-  - **Byte-identical data:** the read is a *refresh*. The observation's `recvTs` and `recvWall` are updated, but its slot is not moved backwards. The account is provably still in the accepted state.
-  - **Different data at a lower slot:** the read is discarded as `out_of_order`.
-- **Read fails:** nothing is emitted, and the observation ages toward its hard expiry (see `reconciliation.md`).
+- **Read from a lagging node.** The public RPC load-balances across nodes, so a revalidation read can come back at a slot lower than the last accepted one. The result is still reported, marked as a revalidation. The reconciler decides whether it counts as a refresh (see `reconciliation.md` § Pool State).
 - **Rate:** at most one revalidation batch per venue in flight at a time.
 
 ### Reconnect
@@ -123,7 +120,7 @@ Enabled only when `JUPITER_API_KEY` is set. Otherwise it is constructed in the `
 - **Validation:** the response goes through a zod schema, `Record<mint, { usdPrice: number > 0, blockId?: number | null, decimals?: number }>`. Each entry is validated on its own. An entry that fails, or that is missing, means no update for that mint this round, and that observation ages normally. A response where the whole body fails validation counts as a failed poll.
 - **Quote conversion (HLD KDD-6):** `priceInUsdc = usdPrice[mint] / usdPrice[USDC]`, using both values from the same response. If the USDC entry is missing or invalid, the whole poll yields no updates, because nothing can be converted.
 - **Slot:** `blockId` is used when present, otherwise `null`.
-- **Lag versus the chain:** when `blockId` is present, it is compared with the highest slot seen from any RPC venue's `slotSubscribe`. If Jupiter is more than `JUPITER_MAX_SLOT_LAG` (default 150 slots, about 60 s) behind, its quotes from that poll are reported with a `lagging` flag. The registry treats that as `source_stale` (see `reconciliation.md`). Without any RPC slot reference (both on-chain venues down), the check is skipped.
+- **Lag versus the chain:** the adapter only reports `blockId`. The source registry compares it with the RPC slot head and judges whether Jupiter is lagging (see `reconciliation.md`).
 - **Liveness:** each successful poll calls `sink.onSlot('jupiter', blockId ?? null, recvTs)`. Liveness for Jupiter means "the last successful poll is recent" (see `reconciliation.md`).
 - **States:** the first success moves `connecting → live`. A failure marks `down` only after `JUPITER_FAILS_TO_DOWN` (default 3) consecutive failures, since one timeout is noise.
 - **429 handling:** honour `Retry-After`, and otherwise double the interval up to 30 s. The interval decays back after successes.

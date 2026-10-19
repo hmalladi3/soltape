@@ -36,7 +36,7 @@ LLD: `docs/llds/delivery.md`
   - `/health` becomes reachable
   - `GET /price/SOL` returns 200 with three sources
   - dropping the Orca venue via the control API makes health `degraded`
-  - restoring it brings health back to `ok`
+  - restoring it brings health back to `ok` within 60 seconds
 - [ ] **DLV-CI-007**: On every push and pull request, CI shall run a reduced benchmark (rates 1k and 10k, subscribers 1 and 100, 10 seconds each), publish its Markdown table to the job summary labelled as a noisy shared runner, and upload its raw results as artifacts.
 - [ ] **DLV-CI-008**: If the reduced CI benchmark's p99 exceeds 5× the committed baseline, then CI shall fail the benchmark job.
 

@@ -138,7 +138,7 @@ All messages are JSON text frames, with `permessage-deflate` disabled.
 | Message | Shape |
 |---|---|
 | `snapshot` / `price` | `{"type":"price","data":<consolidated as in REST>, "trigger":{"source":"orca:…","slot":N}}`. `snapshot` has the same shape and is sent on subscribe. |
-| `unavailable` | `{"type":"unavailable","mint":…, "lastKnown":…}`, sent when a market loses all eligible sources |
+| `unavailable` | `{"type":"unavailable","mint":…, "lastKnown":…}`, sent on the reconciler's `unavailable` event (a market losing its last eligible source), and on subscribe to a market that is currently unavailable |
 | `subscribed` / `unsubscribed` | `{"type":"subscribed","mints":[resolved mint addresses]}` |
 | `error` | `{"type":"error","code":"INVALID_MINT","message":…}` |
 

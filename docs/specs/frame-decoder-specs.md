@@ -37,6 +37,7 @@ These specs apply to **both** decoder implementations (native napi-rs and TypeSc
 ## Reference Implementation and Parity
 
 - [ ] **DEC-REF-001**: The TypeScript reference decoder shall convert u128 values via `Number(BigInt)` so that its rounding matches the native decoder exactly.
+- [ ] **DEC-REF-003**: If an unexpected exception occurs inside the TypeScript reference decoder, then it shall catch it at its public function boundary and return `PANIC` (−6). This is the reference decoder's one sanctioned catch point, matching the native FFI boundary.
 - [ ] **DEC-REF-002**: The TypeScript reference decoder shall reject every base64 input that the native decoder rejects, despite Node's lenient base64 decoding.
 - [ ] **DEC-PAR-001**: For every recorded fixture frame, fuzz-corpus input, and generated mutated frame, the native and reference decoders shall return the same status code and bit-identical output slots 0–6.
 

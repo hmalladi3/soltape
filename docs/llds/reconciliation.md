@@ -29,6 +29,15 @@ consolidated[mktIdx]        { price, sources[], excluded[], spreadBps, degraded,
 
 Each market has at most one **observation per venue** (orca, raydium, jupiter). An observation comes from a direct pool, from a route of pools, or from a Jupiter quote.
 
+## Pool State
+
+The reconciler owns all per-pool state. Adapters report facts, and these rules decide what they mean:
+
+- **Ordering guard.** An update whose slot is lower than the pool's last accepted slot is discarded and counted (`out_of_order`). An equal slot is accepted, since several transactions in one slot can each update the account.
+- **Lagging-node refresh.** A *revalidation* result at a lower slot whose sqrt ratio, liquidity, and tick equal the last accepted state refreshes the pool's receive timestamps without moving its slot backwards. The account is provably still in that state, and the read came from an RPC node that is behind. This compares the decoded price-bearing fields rather than raw bytes. The hot path never keeps raw bytes, and no other field affects price.
+- **Suspicion.** A pool reported suspect (decode error on its subscription) stays suspect until its next accepted update.
+- **Misconfiguration.** A pool reported misconfigured stays so for the process lifetime.
+
 ## Source Liveness (Registry)
 
 | Source kind | Live while | Default threshold |
@@ -36,7 +45,7 @@ Each market has at most one **observation per venue** (orca, raydium, jupiter). 
 | RPC venue | adapter state is `live` **and** `now − lastSlotNotificationTs ≤ SLOT_SILENCE_MS` | 2,000 ms (≈5 slots) |
 | Jupiter | adapter state is `live` **and** `now − lastSuccessfulPollTs ≤ JUPITER_SILENCE_MS` | 3 × poll interval (6,000 ms) |
 
-A source that is connected but past its threshold is `stale`, and the registry publishes that state transition. A Jupiter poll carrying the ingest `lagging` flag (its `blockId` is too far behind the RPC slot head) also makes Jupiter `stale`, until a poll arrives without the flag.
+A source that is connected but past its threshold is `stale`, and the registry publishes that state transition. Jupiter is also `stale` while its latest `blockId` is more than `JUPITER_MAX_SLOT_LAG` (default 150 slots, about 60 s) behind the highest slot reported by any RPC venue. The check is skipped when no RPC venue has reported a slot. The registry owns this comparison because it is the only component that sees both sources' slots.
 
 **Hysteresis:** a source moving from `stale` or `down` back to `live` must **stay** live for `RECOVERY_HOLD_MS` (default 1,000 ms) before its observations become eligible again. While it is held, its observations report reason `source_recovering`. Going stale takes effect immediately, while coming back is delayed. A source flapping around the threshold therefore can't toggle the consolidated price on every sweep, and losing a source is never delayed. A source that stays stale longer than `RECONNECT_ON_STALE_MS` triggers the adapter's forced reconnect (see `ingest-sources.md`).
 
@@ -93,15 +102,20 @@ The consolidation runs on every change to an input of a market (pool update, quo
    - With 3 candidates this tolerates one wrong source. If two candidates are both outliers in opposite directions, only the median remains, and `disagreement = true`.
 3. **Two candidates:** an outlier can't be identified with only two. The price is the midpoint. If they diverge by more than `OUTLIER_BPS`, set `disagreement = true`, keep both, and exclude neither, because there is no basis for picking one.
 4. **One candidate:** the price is that candidate's.
-5. **Zero candidates:** there is no consolidated price. The market's state becomes `unavailable`, the last consolidated price is retained for display only with `stale: true`, and REST returns 503 (see `api-gateway.md`).
+5. **Zero candidates:** there is no consolidated price. The market's state becomes `unavailable`, the last consolidated price is retained for display only with `stale: true`, and REST returns 503 (see `api-gateway.md`). On a transition from available, the reconciler emits an **`unavailable` event**. This is a second event kind next to consolidated updates. It goes to the gateway (`unavailable` message) and to Redis (marked dirty), and it writes no history row, since there is no price to record. A market that has never been available emits nothing.
 6. Fill in the remaining fields:
    - `price`: the median of the eligible observations.
    - `sources`: the eligible source ids.
    - `excluded`: `[{source, reason}]` for the rest.
    - `spreadBps`: `(max − min) / median` over the eligible observations.
    - `slot`: the maximum slot among eligible on-chain observations.
-   - `degraded`: `eligible count < configured count`.
-   - `trigger`: `{ source, slot }` of the input that caused this evaluation.
+   - `degraded`: `eligible count < count of configured venues whose source isn't disabled`. Without a Jupiter key, a healthy two-venue market is not degraded. Jupiter still appears in `excluded` as `source_disabled`, for transparency.
+   - `trigger`: the input that caused this evaluation:
+     - `<venue>:<pool>` with the pool update's slot. For a route, this names the leg pool that changed.
+     - `jupiter` with its `blockId`.
+     - `sweep` with a null slot.
+
+     Triggers are pool-level, so the benchmark can join outputs to inputs exactly.
 7. **Change detection:** emit only if `price`, the eligible set, the `excluded` reasons, `degraded`, or `disagreement` changed. A pool update at a new slot with an identical price emits nothing. This is the main suppressor of redundant fan-out. Each emission increments `seq`.
 
 **Median definition:** for an odd count, the middle value. For an even count, the mean of the two middle values (so two sources give the midpoint, matching step 3). It is computed in place over a preallocated scratch array with insertion sort, which is allocation-free and optimal for n ≤ 8. That covers today's 3 venues and leaves room for Phoenix and Drift. `Array.sort` isn't used.
@@ -110,10 +124,17 @@ The consolidation runs on every change to an input of a market (pool update, quo
 
 Every `SWEEP_MS` (default 250 ms), the reconciler re-checks liveness and expiry for every source and observation. Any market whose eligible set changed is re-consolidated with `trigger = { source: 'sweep' }`. This is how a source going silent drops out of the price within about `threshold + 250 ms`, with no event needed. The sweep loops over fixed arrays, at a cost of O(markets × venues), which amounts to tens of comparisons.
 
+## Lifecycle
+
+On shutdown the reconciler is **frozen first**: the sweep timer stops and emissions stop *before* the adapters are stopped. Otherwise every restart would publish a burst of spurious `degraded` and `unavailable` updates, as each source went `down` during shutdown, and write them into history.
+
 ## Output Interface
 
 ```ts
-interface ConsolidatedListener { onConsolidated(mktIdx: number, c: Consolidated): void }
+interface ConsolidatedListener {
+  onConsolidated(mktIdx: number, c: Consolidated): void
+  onUnavailable(mktIdx: number, lastKnown: Consolidated | null): void
+}
 ```
 
 - The gateway (fan-out) and persistence subscribe to this interface.

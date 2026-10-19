@@ -87,7 +87,7 @@ CREATE TABLE consolidated (
 ### Partition management
 
 - Partitions are **daily**: `observations_YYYYMMDD` and `consolidated_YYYYMMDD`.
-- **At boot, and then hourly**, the maintenance task:
+- **After migrations, at boot, hourly, and whenever a history sink transitions to `up`**, the maintenance task:
   - ensures partitions exist for today plus the next 2 days (`CREATE TABLE IF NOT EXISTS … PARTITION OF … FOR VALUES FROM … TO …`);
   - drops partitions entirely older than `HISTORY_RETENTION_DAYS`.
 - A `DEFAULT` partition catches rows that fall outside every daily partition, for example after clock skew. The task counts its rows and logs them, and it never drops the `DEFAULT` partition.
@@ -102,12 +102,13 @@ CREATE TABLE consolidated (
 - **Flush trigger:** a buffer reaches `PG_BATCH_ROWS` (default 1,000), or `PG_FLUSH_MS` (default 250 ms) elapses with rows pending.
 - **Insert method:** a multi-row parameterized `INSERT … VALUES (…),(…)`, through the `pg` pool (`max: 4`, `connectionTimeoutMillis: 2000`, `statement_timeout: 5000` ms). There is one flush in flight per table at a time. The timeouts mean a hung or unreachable database fails a flush within seconds instead of tying up the pool.
 - **Overflow:** when a buffer is full, the **oldest** row is dropped and `soltape_persist_dropped_total{sink}` is incremented. Recent history is worth more than old history to a live system.
+- **Read pool:** `/history` reads use a **separate** `pg` pool (`max: 2`, same timeouts), so a reader never waits behind a backlog of writes, and a heavy history query never stalls the writer.
 - **Failure:** a failed batch is retried once after 1 s. If the retry fails, the batch is dropped and counted, and the sink is marked `down` until a later batch succeeds. Retrying forever would let a dead database pin memory.
 
 ### What gets written
 
 - **Observations:** every observation whose price, eligibility, or reason changed. Unchanged revalidations are not written.
-- **Consolidated:** every emitted consolidated update (after change detection).
+- **Consolidated:** every emitted consolidated update (after change detection). `unavailable` events write no row (see `reconciliation.md`). Outages show up in history as gaps, and `/history` omits empty buckets.
 
 Expected live volume is about 5 markets × 3 venues at a few changes per second, i.e. tens of rows per second, or a few million rows per day. That fits easily under 7-day retention. Replay benchmarks at 10k updates/s exercise the bounded queue, which is the point.
 

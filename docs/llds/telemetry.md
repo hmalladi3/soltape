@@ -29,10 +29,10 @@ Wall-clock time (`receivedAt`, persisted `ts`) comes from `Date.now()`, taken at
 
 | Histogram | Stage | Labels |
 |---|---|---|
-| `soltape_decode_seconds` | `t1 − t0` | `source` |
+| `soltape_decode_seconds` | `t1 − t0` | `venue` |
 | `soltape_reconcile_seconds` | `t2 − t1` | — |
 | `soltape_fanout_seconds` | `t3 − t2` | — |
-| `soltape_internal_latency_seconds` | `t3 − t0` | `source` |
+| `soltape_internal_latency_seconds` | `t3 − t0` | `venue` (`orca`, `raydium`, `jupiter`, `sweep`) |
 
 - `t3 − t0` is the **headline internal latency**. It is recorded only for inputs that produced an emitted update. Suppressed no-change inputs are counted separately (`soltape_updates_suppressed_total`).
 - **Two recorders:**

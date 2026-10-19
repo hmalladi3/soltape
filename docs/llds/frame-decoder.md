@@ -156,6 +156,8 @@ The reference decoder has the same function signatures and output semantics. To 
 - **JSON:** `JSON.parse(frame.toString('utf8'))`, then the same field extraction, with the same status code for each failure class.
 - **base64:** `Buffer.from(s, 'base64')`, with explicit validation, because Node's decoder is lenient and silently skips invalid characters. The reference must reject anything Rust rejects.
 
+- **Exception boundary:** the reference decoder's public functions catch unexpected exceptions and return `PANIC` (−6), mirroring the native `catch_unwind`. This is the one sanctioned catch point. It contains a decoder *bug*, while the runtime's no-swallowing rule still applies everywhere else.
+
 Parity is defined on the **status code plus output slots 0–6** for every fixture and every fuzz-corpus input. Divergence on any input fails the test.
 
 ## Testing

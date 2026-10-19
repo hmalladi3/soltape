@@ -9,13 +9,14 @@ LLD: `docs/llds/service-runtime.md`
 - [ ] **RUN-CFG-003**: When an environment variable listed in the runtime configuration table is unset, the system shall use its documented default value.
 - [ ] **RUN-CFG-004**: If the markets file declares a market whose venue entry is neither a direct pool nor a route ending in the quote mint, then the system shall reject the configuration at startup.
 - [ ] **RUN-CFG-005**: If the markets file declares a route whose legs belong to a venue other than the route's own venue, then the system shall reject the configuration at startup.
-- [ ] **RUN-CFG-006**: If the markets file contains duplicate market symbols, or any mint or pool address that is not a base58 encoding of exactly 32 bytes, then the system shall reject the configuration at startup.
+- [ ] **RUN-CFG-006**: If the markets file contains duplicate market symbols or duplicate market mints, or any mint or pool address that is not a base58 encoding of exactly 32 bytes, then the system shall reject the configuration at startup.
 - [ ] **RUN-CFG-007**: The system shall expose the validated configuration to components as a single frozen object that cannot be mutated at runtime.
 
 ## Dependency Injection
 
 - [ ] **RUN-DI-001**: The system shall construct all stateful components as singletons through one Awilix composition root, with each component receiving its dependencies as constructor parameters.
 - [ ] **RUN-DI-002**: When the service starts, the system shall resolve every registered singleton before listening, so that a wiring error fails startup.
+- [ ] **RUN-DI-004**: The system shall read monotonic and wall-clock time only through the injected `Clock`.
 - [ ] **RUN-DI-003**: The system shall allow the `PriceSource`, `FrameDecoder`, `LatestStore`, `HistorySink`, and `Clock` registrations to be replaced in tests without modifying component code.
 
 ## Decoder Selection
@@ -35,7 +36,7 @@ LLD: `docs/llds/service-runtime.md`
 
 ## Shutdown
 
-- [ ] **RUN-LIFE-010**: When the service receives SIGTERM or SIGINT, the system shall report `stopping` health status, stop accepting new HTTP connections and WebSocket upgrades, stop all source adapters, close WebSocket clients with code 1001, flush persistence with a 5-second deadline, close datastore clients, and exit with code 0.
+- [ ] **RUN-LIFE-010**: When the service receives SIGTERM or SIGINT, the system shall report `stopping` health status, stop accepting new HTTP connections and WebSocket upgrades, stop the reconciler (REC-LIFE-001), stop all source adapters, close WebSocket clients with code 1001, flush persistence with a 5-second deadline, close datastore clients, and exit with code 0.
 - [ ] **RUN-LIFE-011**: If a second SIGTERM or SIGINT arrives while shutdown is in progress, then the system shall exit immediately with code 1.
 - [ ] **RUN-LIFE-012**: When shutdown completes, the system shall leave no open timers, sockets, or handles held by its components.
 

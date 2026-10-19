@@ -79,7 +79,7 @@ Profiles pick which app variant runs. A committed `.env` sets `COMPOSE_PROFILES=
 | `fuzz` | `cargo +nightly fuzz run` for each target, 60 s each, using the committed corpus. A crash uploads the reproducer and fails the job |
 | `parity` | Native vs reference over fixtures + corpus + fast-check (needs `rust` artifact) |
 | `integration` | Vitest integration suite with testcontainers (Postgres, Redis), service + replay server in-process or child process, plus the fault-injection scenarios |
-| `compose-smoke` | `docker compose --profile replay up -d --build`, wait for `/health`, then assert `GET /price/SOL` → 200 with 3 sources. Kill `orca` via `/control`, assert `degraded`. Restore, assert recovery. Then tear down |
+| `compose-smoke` | `docker compose --profile replay up -d --build`, wait for `/health`, then assert `GET /price/SOL` → 200 with 3 sources. Kill `orca` via `/control`, assert `degraded`. Restore, assert `ok` within 60 s, which allows for reconnect backoff plus the 1 s recovery hold. Then tear down |
 | `bench-smoke` | Builds the image, runs the bench matrix reduced to `R ∈ {1k, 10k}` and `S ∈ {1, 100}` for 10 s each, writes the Markdown table to `$GITHUB_STEP_SUMMARY`, uploads JSON + HDR logs as artifacts |
 
 - **Benchmark noise:** `bench-smoke` numbers are labelled *"GitHub-hosted runner (shared, noisy): regression signal only"*. A regression fails the job only if p99 exceeds 5× the committed baseline, and the threshold is deliberately loose for noisy runners.

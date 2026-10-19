@@ -46,14 +46,14 @@ LLD: `docs/llds/api-gateway.md`
 
 ## WebSocket Protocol
 
-- [ ] **API-WS-001**: When a WebSocket client sends `subscribe` with a list of mints or symbols, the system shall add each valid entry not already subscribed, reply `subscribed` with the resolved mint addresses, then send per newly subscribed market either a `snapshot` or, if the market is unavailable, an `unavailable` message.
+- [ ] **API-WS-001**: When a WebSocket client sends `subscribe` with a list of mints or symbols, the system shall add each valid entry not already subscribed, reply `subscribed` with the resolved mint addresses, then send per newly subscribed market either a `snapshot` or, if the market is unavailable, an `unavailable` message with `lastKnown`.
 - [ ] **API-WS-002**: When a WebSocket client sends `subscribe` with `["*"]`, the system shall subscribe it to every tracked market.
 - [ ] **API-WS-003**: When a WebSocket client subscribes to a mint it is already subscribed to, or unsubscribes from one it is not subscribed to, the system shall treat that entry as a no-op.
 - [ ] **API-WS-004**: If a WebSocket `subscribe` request contains invalid or untracked entries, then the system shall apply the valid entries and send a single `error` message with code `INVALID_MINTS` listing each rejected entry with its reason.
 - [ ] **API-WS-005**: When a WebSocket client sends `unsubscribe`, the system shall remove the listed mints and reply `unsubscribed`.
 - [ ] **API-WS-006**: When a WebSocket client sends `{"op":"ping"}`, the system shall reply `{"type":"pong"}`.
 - [ ] **API-WS-007**: When a consolidated update is emitted for a market, the system shall send subscribers of that market a `price` message containing the consolidated record (including `seq`) and its `trigger`.
-- [ ] **API-WS-008**: When a market becomes unavailable, the system shall send its subscribers an `unavailable` message with `lastKnown`.
+- [ ] **API-WS-008**: When the reconciler emits an `unavailable` event for a market (a transition from available), the system shall send that market's subscribers an `unavailable` message with `lastKnown`.
 - [ ] **API-WS-009**: The system shall disable `permessage-deflate` on the WebSocket server.
 
 ## WebSocket Policing
