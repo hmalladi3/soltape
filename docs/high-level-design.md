@@ -145,7 +145,7 @@ Every source normalizes into one shape. These fields are fixed at HLD level; exa
 - `slot`: the Solana slot, for on-chain sources. Null for Jupiter.
 - `sourceTime`: when the source says the value was true, if it says.
 - `receivedAt`: wall-clock time the frame was received (for persistence and display).
-- `stageNs`: monotonic `hrtime` timestamps per pipeline stage (receive, decode, reconcile, emit), used for latency metrics and never persisted.
+- stage timestamps: monotonic, allocation-free timestamps per pipeline stage (receive, decode, reconcile, emit), used for latency metrics and never persisted. See `docs/llds/telemetry.md`.
 
 ### Consolidated price
 
@@ -247,7 +247,7 @@ Jupiter is **optional**. Its API (`api.jup.ag`) requires a free key, and the key
 ### KDD-10: Latency measured in two places, with HDR histograms
 
 **Chosen:**
-- **Internal latency:** every tick carries monotonic `hrtime.bigint()` stage stamps. Receive → decoded → reconciled → written to the socket is recorded in prom-client histograms.
+- **Internal latency:** every tick carries monotonic stage stamps (`performance.now()`, which doesn't allocate, unlike `hrtime.bigint()`). Receive → decoded → reconciled → written to the socket is recorded in prom-client histograms.
 - **End-to-end benchmark:** a replay harness serves recorded real mainnet frames from a local fake RPC server at a controlled rate (up to well past live rates), while a load-generating client counts how many WebSocket subscribers it holds. Client-side receive time minus the replay stamp goes into an HDR histogram.
 - **Live run:** the same measurements against mainnet, reported separately.
 - **README:** reports both, with machine specs and exact commands.

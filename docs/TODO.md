@@ -2,19 +2,19 @@
 
 ## In progress
 
-- Phase 1: HLD drafted (`docs/high-level-design.md`, option A); in user review
+- Phase 2: 9 LLDs drafted in `docs/llds/`; LLD edge-case probe presented, waiting on triage
 
 ## Up next
 
-- Phase 2: draft LLDs in `docs/llds/` plus an edge-case probe per LLD
 - Phase 3: EARS specs in `docs/specs/` per LLD
 
 ## Waiting on the user
 
-- Review the HLD, especially KDD-4 (staleness = liveness), KDD-6 (USDC numeraire), KDD-7 (`processed` commitment)
+- Triage the LLD edge-case probe (fix in the LLD vs. defer)
 
 ## Done
 
+- 2026-10-19: HLD approved
 - 2026-10-19: HLD gains KDD-12 (reviewable locally via Docker + GH Actions; no hosting, no credentials, optional Jupiter key, replay mode, GHCR image, live page)
 - 2026-10-19: Architecture option A chosen (Node orchestration + in-process napi-rs decoder)
 - 2026-10-19: Stack and venue choices delegated to Claude; must be defensible in the HLD
