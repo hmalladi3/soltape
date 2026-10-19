@@ -9,7 +9,11 @@ pub struct Fixture {
 }
 
 pub fn fixtures() -> Vec<Fixture> {
-    let raw = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../fixtures/accounts.json")).unwrap();
+    let raw = std::fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../fixtures/accounts.json"
+    ))
+    .unwrap();
     let v: serde_json::Value = serde_json::from_str(&raw).unwrap();
     v["pools"]
         .as_array()

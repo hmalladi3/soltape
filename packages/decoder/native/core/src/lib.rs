@@ -12,6 +12,7 @@ pub use frame::decode_notification;
 pub use layouts::{PoolInfo, decode_account};
 
 /// Runs a decoder call, converting a panic into the `PANIC` status (FFI boundary guard).
+// @spec DEC-NAT-003
 pub fn guarded<F: FnOnce() -> i32>(f: F) -> i32 {
-    f() // Phase 5 stub: does not yet catch panics
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(f)).unwrap_or(PANIC)
 }

@@ -4,13 +4,13 @@ LLD: `docs/llds/service-runtime.md`
 
 ## Configuration
 
-- [ ] **RUN-CFG-001**: When the service starts, the system shall validate all environment configuration and the markets file against their schemas before opening any network connection.
-- [ ] **RUN-CFG-002**: If startup configuration validation fails, then the system shall print every validation error found (not only the first) and exit with code 2.
-- [ ] **RUN-CFG-003**: When an environment variable listed in the runtime configuration table is unset, the system shall use its documented default value.
-- [ ] **RUN-CFG-004**: If the markets file declares a market whose venue entry is neither a direct pool nor a route ending in the quote mint, then the system shall reject the configuration at startup.
-- [ ] **RUN-CFG-005**: If the markets file declares a route whose legs belong to a venue other than the route's own venue, then the system shall reject the configuration at startup.
-- [ ] **RUN-CFG-006**: If the markets file contains duplicate market symbols or duplicate market mints, or any mint or pool address that is not a base58 encoding of exactly 32 bytes, then the system shall reject the configuration at startup.
-- [ ] **RUN-CFG-007**: The system shall expose the validated configuration to components as a single frozen object that cannot be mutated at runtime.
+- [x] **RUN-CFG-001**: When the service starts, the system shall validate all environment configuration and the markets file against their schemas before opening any network connection.
+- [x] **RUN-CFG-002**: If startup configuration validation fails, then the system shall print every validation error found (not only the first) and exit with code 2.
+- [x] **RUN-CFG-003**: When an environment variable listed in the runtime configuration table is unset, the system shall use its documented default value.
+- [x] **RUN-CFG-004**: If the markets file declares a market whose venue entry is neither a direct pool nor a route ending in the quote mint, then the system shall reject the configuration at startup.
+- [x] **RUN-CFG-005**: If the markets file declares a route whose legs belong to a venue other than the route's own venue, then the system shall reject the configuration at startup.
+- [x] **RUN-CFG-006**: If the markets file contains duplicate market symbols or duplicate market mints, or any mint or pool address that is not a base58 encoding of exactly 32 bytes, then the system shall reject the configuration at startup.
+- [x] **RUN-CFG-007**: The system shall expose the validated configuration to components as a single frozen object that cannot be mutated at runtime.
 
 ## Dependency Injection
 
@@ -21,9 +21,9 @@ LLD: `docs/llds/service-runtime.md`
 
 ## Decoder Selection
 
-- [ ] **RUN-DEC-001**: Where `DECODER` is `auto`, when the native decoder addon fails to load, the system shall log a warning with the load error and use the TypeScript reference decoder.
-- [ ] **RUN-DEC-002**: Where `DECODER` is `native`, if the native decoder addon fails to load, then the system shall exit with code 2.
-- [ ] **RUN-DEC-003**: Where `DECODER` is `ts`, the system shall use the TypeScript reference decoder without attempting to load the native addon.
+- [x] **RUN-DEC-001**: Where `DECODER` is `auto`, when the native decoder addon fails to load, the system shall log a warning with the load error and use the TypeScript reference decoder.
+- [x] **RUN-DEC-002**: Where `DECODER` is `native`, if the native decoder addon fails to load, then the system shall exit with code 2.
+- [x] **RUN-DEC-003**: Where `DECODER` is `ts`, the system shall use the TypeScript reference decoder without attempting to load the native addon.
 
 ## Startup
 

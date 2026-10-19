@@ -97,7 +97,7 @@ describe('markets file', () => {
     expect(isPubkey('So11111111111111111111111111111111111111112')).toBe(true);
     expect(isPubkey('11111111111111111111111111111111')).toBe(true);
     expect(isPubkey('HJPjoWUrhoZzkNfRpHuieeFk9WcZWjwy6PBjZ81ngndJ')).toBe(true);
-    expect(isPubkey('HJPjoWUrhoZzkNfRpHuieeFk9WcZWjwy6PBjZ81ngnd')).toBe(false);
+    expect(isPubkey('HJPjoWUrhoZzkNfRpHuieeFk9WcZWjwy6PBjZ81ngndJ'.slice(0, 41))).toBe(false); // 30 bytes
     expect(isPubkey('0JPjoWUrhoZzkNfRpHuieeFk9WcZWjwy6PBjZ81ngndJ')).toBe(false);
     expect(isPubkey('')).toBe(false);
   });

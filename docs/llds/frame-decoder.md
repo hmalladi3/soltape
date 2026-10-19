@@ -75,13 +75,33 @@ A notification has this shape:
  "subscription":ID}}
 ```
 
-Rust parses it with `serde_json` into **borrowed** structs (`&'a str` fields, zero-copy against the input slice). Unknown fields are ignored. Field order is not assumed, since JSON object order is not guaranteed. Only `method`, `params.subscription`, `params.result.context.slot` / `params.result.slot`, and `params.result.value.data` are read. `owner` is not checked per frame, because ownership was validated at boot and accounts can't change owner while subscribed in a way that matters to a read-only feed. The base64 payload is decoded into a 4 KiB stack buffer. A payload larger than that fails with `BAD_LENGTH` before decoding.
+**One pass, tolerant, zero-copy.** Rust validates UTF-8 strictly, then makes a single `serde_json` pass over the frame. It uses hand-written visitors rather than derived structs.
+
+- **Tolerant containers.** Each of the five known container levels (top, `params`, `result`, `context`, `value`) reads its known keys and *records* a wrong JSON type instead of failing. The method can therefore be decided after the whole frame is read, whatever the key order. Account and slot notifications share `params`/`result`, so `result` holds the union of both shapes.
+- **Raw leaf values.** Leaves (`method`, `subscription`, the slots, and the two `data` elements) are captured as borrowed `RawValue` text and interpreted by the decoder:
+  - A string serde cannot represent (an unpaired-surrogate escape) is "a string that matches nothing".
+  - A number that overflows f64 is "not a valid id".
+  - That is how `JSON.parse` sees them.
+- **Unknown fields** are skipped with `IgnoredAny`, which validates their syntax without parsing them. Duplicate keys resolve last-wins, as in `JSON.parse`.
+- **Allocation-free.** On well-formed frames the pass performs **no heap allocation**, which a counting-allocator test enforces. Leaves never nest, so serde's skip stack never grows. Escaped strings in inspected fields allocate, but never occur in real RPC output.
+- **Ids.** Subscription ids and slots must be JSON numbers that are integers in `[0, 2^53 − 1]`. `-0` is normalized to `0`.
+- **Base64.** The payload is decoded with the canonical, padded `STANDARD` engine into a stack scratch buffer, after a length pre-check on the base64 text.
+
+`serde_json` is built with `float_roundtrip`, so number parsing is correctly rounded on both sides.
+
+**The one divergence the reference must mirror.** serde rejects two things that `JSON.parse` accepts:
+- object keys it cannot represent, in the objects the decoder walks;
+- scalars it cannot represent (unpaired surrogates, f64 overflow) at positions where it expects a container.
+
+The reference decoder reproduces that rule explicitly (`strictRejects`). Both decoders return `MALFORMED_JSON` there.
+
+**Known limit of the parity domain:** if a frame repeats a key, and an *earlier* occurrence holds such an unrepresentable value, Rust rejects it while `JSON.parse` keeps only the last occurrence. Real RPC output never does this, and neither do the fuzz generators.
 
 ## Account Layouts
 
 **Length policy:** an account is accepted if its length is ≥ the layout's **minimum length** (the end of the highest field read) and ≤ the scratch buffer size. A length different from the documented size (653 / 1544) is still decoded, and is flagged by setting `out[6]` (`SIZE_UNEXPECTED`) to `1`. Ingest logs that once per layout at `warn`. Program upgrades that append fields therefore keep working, and the warning makes them visible.
 
-Both are Anchor accounts: the first 8 bytes are the discriminator `sha256("account:<Name>")[..8]`. The constants are computed in a `build.rs` or `const` test from the name, never pasted by hand, and are verified against recorded fixtures. All integers are little-endian.
+Both are Anchor accounts: the first 8 bytes are the discriminator `sha256("account:<Name>")[..8]`. Rust derives the constants in `build.rs` and the reference derives them with `node:crypto` at load time, so they are never pasted by hand. Tests verify them against real mainnet fixtures. All integers are little-endian.
 
 ### Orca Whirlpool (`whirLbMiicVdio4qvUfM5KAg6Ct8VwpYzGff3uctyCc`, account `Whirlpool`, 653 bytes)
 
@@ -154,7 +174,8 @@ The reference decoder has the same function signatures and output semantics. To 
 
 - **u128 → f64:** combine as `BigInt` and convert with `Number(big)`. Both `Number(bigint)` and Rust's `u128 as f64` round to nearest, ties to even, so results are identical. Splitting into `hi·2^64 + lo` doubles would round twice and break parity.
 - **`/ 2^64`:** multiplication by the exact constant `2^-64`, which is exact in both languages.
-- **JSON:** `JSON.parse(frame.toString('utf8'))`, then the same field extraction, with the same status code for each failure class.
+- **JSON:** a fatal, BOM-preserving `TextDecoder`, then `JSON.parse`, then `strictRejects` (see Frame Parsing), then the same field extraction with own-property reads only (keys like `constructor` or `__proto__` must not resolve through the prototype). Each failure class returns the same status code as in Rust.
+- **Base64 length:** the pre-check uses `Buffer.byteLength(s, 'utf8')`, matching Rust's byte length.
 - **base64:** `Buffer.from(s, 'base64')`, with explicit validation, because Node's decoder is lenient and silently skips invalid characters. The reference must reject anything Rust rejects.
 
 - **Exception boundary:** the reference decoder's public functions catch unexpected exceptions and return `PANIC` (−6), mirroring the native `catch_unwind`. This is the one sanctioned catch point. It contains a decoder *bug*, while the runtime's no-swallowing rule still applies everywhere else.

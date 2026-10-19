@@ -668,7 +668,7 @@ describe('consolidation', () => {
     const h = setup();
     h.solThree();
     const s1 = h.lastC(SOL)!.seq;
-    h.pool(0, 100.05);
+    h.quote(SOL, 100.15); // moves the median from 100.1 to 100.15
     expect(h.lastC(SOL)!.seq).toBe(s1 + 1);
   });
 

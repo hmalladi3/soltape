@@ -47,7 +47,7 @@ export interface AccountFrameOptions {
 /** Builds an `accountNotification` frame in the exact shape Solana RPC sends. */
 export function accountFrame(dataB64: string, opts: AccountFrameOptions = {}): string {
   const value = {
-    data: opts.data ?? [dataB64, 'base64'],
+    data: 'data' in opts ? opts.data : [dataB64, 'base64'],
     executable: false,
     lamports: 13645859,
     owner: RAYDIUM_CLMM_PROGRAM,

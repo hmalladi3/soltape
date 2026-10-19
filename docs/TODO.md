@@ -2,11 +2,11 @@
 
 ## In progress
 
-- Phase 5 wave 1 (decoder, reconciliation, config/model): failing tests written; next is Phase 6 code for wave 1
+- Wave 1 complete; waiting on user review before wave 2 (ingest adapters)
 
 ## Up next
 
-- Wave 2: ingest adapters (fake RPC WS server, fake Jupiter); wave 3: API gateway + live page; wave 4: persistence (testcontainers); wave 5: telemetry; wave 6: replay + bench; wave 7: delivery (Docker, compose, CI)
+- Wave 2: ingest adapters + composition root (RUN-DI-*, RUN-LIFE-*, RUN-ERR-* still have no tests) (fake RPC WS server, fake Jupiter); wave 3: API gateway + live page; wave 4: persistence (testcontainers); wave 5: telemetry; wave 6: replay + bench; wave 7: delivery (Docker, compose, CI)
 - Record the first mainnet session fixture (`pnpm record`) once the recorder exists (wave 6)
 
 ## Waiting on the user
@@ -14,6 +14,7 @@
 
 ## Done
 
+- 2026-10-19: Wave 1 (decoder, reconciliation, config, market model): 263 TS + 7 Rust tests green; DEC/REC/RUN-CFG/RUN-DEC specs marked [x]; informal decoder microbench on M4: native 1.09M frames/s p99.9 1.37us vs reference 279k/s p99.9 9.0us
 - 2026-10-19: Phase 4 resolutions approved
 - 2026-10-19: Workspace scaffolded (pnpm 10, TS 7, Vitest 5, napi-rs 3, Rust 1.99); pnpm installed globally via npm
 - 2026-10-19: `config/markets.json` pools chosen by the highest-TVL-path rule and verified on-chain (owner, mints, layout size)

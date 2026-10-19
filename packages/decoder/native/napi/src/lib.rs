@@ -4,6 +4,7 @@ use napi_derive::napi;
 use soltape_decoder_core as core;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 
+// @spec DEC-NAT-001, DEC-NAT-003, DEC-NAT-004
 #[napi]
 pub fn decode_notification(frame: &[u8], mut out: Float64Array) -> i32 {
     // SAFETY: the typed array is owned by the JS caller and is neither detached nor
@@ -39,7 +40,12 @@ pub fn decode_account(data: &[u8], venue: String) -> DecodeAccountResult {
     let venue = match venue.as_str() {
         "orca" => core::Venue::Orca,
         "raydium" => core::Venue::Raydium,
-        _ => return DecodeAccountResult { status: core::UNKNOWN_LAYOUT, info: None },
+        _ => {
+            return DecodeAccountResult {
+                status: core::UNKNOWN_LAYOUT,
+                info: None,
+            };
+        }
     };
     match catch_unwind(AssertUnwindSafe(|| core::decode_account(data, venue))) {
         Ok(Ok(p)) => DecodeAccountResult {
@@ -56,7 +62,13 @@ pub fn decode_account(data: &[u8], venue: String) -> DecodeAccountResult {
                 size_unexpected: p.size_unexpected,
             }),
         },
-        Ok(Err(code)) => DecodeAccountResult { status: code, info: None },
-        Err(_) => DecodeAccountResult { status: core::PANIC, info: None },
+        Ok(Err(code)) => DecodeAccountResult {
+            status: code,
+            info: None,
+        },
+        Err(_) => DecodeAccountResult {
+            status: core::PANIC,
+            info: None,
+        },
     }
 }

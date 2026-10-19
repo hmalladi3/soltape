@@ -27,7 +27,10 @@ static GLOBAL: Counting = Counting;
 // @spec DEC-NAT-002
 #[test]
 fn decode_notification_does_not_allocate() {
-    let frames: Vec<Vec<u8>> = fixtures().iter().map(|f| account_frame(&f.data_b64, 1, 2)).collect();
+    let frames: Vec<Vec<u8>> = fixtures()
+        .iter()
+        .map(|f| account_frame(&f.data_b64, 1, 2))
+        .collect();
     let slot = br#"{"jsonrpc":"2.0","method":"slotNotification","params":{"result":{"parent":1,"root":0,"slot":2},"subscription":3}}"#.to_vec();
     let mut out = [0f64; OUT_LEN];
     TRACK.store(true, Ordering::SeqCst);
@@ -38,5 +41,9 @@ fn decode_notification_does_not_allocate() {
     }
     TRACK.store(false, Ordering::SeqCst);
     assert!(ok, "every frame must decode");
-    assert_eq!(ALLOCS.load(Ordering::SeqCst), 0, "heap allocations on the notification path");
+    assert_eq!(
+        ALLOCS.load(Ordering::SeqCst),
+        0,
+        "heap allocations on the notification path"
+    );
 }

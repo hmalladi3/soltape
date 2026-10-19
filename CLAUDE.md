@@ -47,3 +47,7 @@ Annotate code and tests with `@spec` comments citing EARS IDs:
 ```
 
 Place the annotation at the *entry point of the behavior's implementation graph* — the topmost function or module owning the specified behavior, not every helper. When a behavior spans multiple subsystems (UI + API + database, for example), annotate at the entry point in each subsystem. Tests follow the same rule: annotate the test that directly exercises the spec, not every inner assertion.
+
+## LID Tooling
+
+- **Coherence check**: `node bin/coherence-check.mjs [--prefix DEC,REC]`. It lists dangling `@spec` references (and exits 1 if there are any), active specs without a test, and active specs without a code annotation.
