@@ -27,8 +27,8 @@ soltape/
   docs/               HLD, LLDs, specs, TODO
 ```
 
-- **TypeScript** runs with `strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, ESM, project references per package, and is built with `tsc -b`.
-- **Lint** is ESLint (typescript-eslint, strict-type-checked) plus Prettier.
+- **TypeScript 6** runs with `strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, ESM, project references per package, and is built with `tsc -b`. TypeScript 7 (the native compiler) was used until wave 7, but typescript-eslint, which the strict lint gate needs, supports only the TS 6 API. Running two compilers side by side would mean two type-checkers that can disagree, so the project standardizes on 6. It uses no TS 7-only features, so moving back is a version bump once typescript-eslint supports 7.
+- **Lint** is ESLint (typescript-eslint, strict-type-checked) plus Prettier. One rule is off: `no-non-null-assertion`. With `noUncheckedIndexedAccess`, hot-path typed-array indexing uses `!` deliberately, and the alternative is a branch per access. Tests relax a few production-only rules (async fakes without `await`, untyped JSON responses).
 - **Rust** uses the stable toolchain pinned in `rust-toolchain.toml`, with `cargo fmt`, `clippy -D warnings`, and `#![forbid(unsafe_code)]` in non-generated modules.
 
 ## Dockerfile (multi-stage, multi-arch)
@@ -42,6 +42,8 @@ soltape/
 - **One image, several commands.** The replay server and benchmark live in the same image, run as different commands (`node apps/replay/dist/main.js`, `node bench/dist/run.js`). Reviewers pull one image.
 - **glibc (`bookworm-slim`), not Alpine.** That avoids maintaining a musl target and the musl allocator's slowdown for allocation-heavy Node workloads.
 - **Cache-friendly layer order:** lockfile and manifests come before sources, and the Cargo registry cache is mounted with `--mount=type=cache`.
+- **Build-info files are excluded from the build context** (`**/*.tsbuildinfo` in `.dockerignore`). Otherwise local build-info marks projects up to date while `dist/` is excluded, and `tsc -b` emits nothing. The build step asserts that `apps/service/dist/main.js` and `bench/dist/run.js` exist.
+- **Size:** about 414 MB (Node runtime and production dependencies, with no dev or SDK dependencies).
 
 ## Compose
 
@@ -76,12 +78,13 @@ Profiles pick which app variant runs. A committed `.env` sets `COMPOSE_PROFILES=
 |---|---|
 | `ts` | `pnpm install --frozen-lockfile`, lint, typecheck, `pnpm fixtures:check`, Vitest unit tests (decoder runs as reference **and** native, via a prebuilt artifact from `rust`) |
 | `rust` | fmt, clippy, `cargo test`, `napi build` → uploads the `.node` artifact |
-| `fuzz` | `cargo +nightly fuzz run` for each target, 60 s each, using the committed corpus. A crash uploads the reproducer and fails the job |
+| `fuzz` | `cargo +nightly fuzz run` for each target, 60 s each, from the committed seed corpus (real fixture frames and accounts; inputs found by fuzzing stay local). A crash uploads the reproducer and fails the job. Local run before commit: 6.5M and 15.4M executions, no crashes |
 | `parity` | Native vs reference over fixtures + corpus + fast-check (needs `rust` artifact) |
 | `integration` | Vitest integration suite with testcontainers (Postgres, Redis), service + replay server in-process or child process, plus the fault-injection scenarios |
 | `compose-smoke` | `docker compose --profile replay up -d --build`, wait for `/health`, then assert `GET /price/SOL` → 200 with 3 sources. Kill `orca` via `/control`, assert `degraded`. Restore, assert `ok` within 60 s, which allows for reconnect backoff plus the 1 s recovery hold. Then tear down |
 | `bench-smoke` | Builds the image, runs the bench matrix reduced to `R ∈ {1k, 10k}` and `S ∈ {1, 100}` for 10 s each, writes the Markdown table to `$GITHUB_STEP_SUMMARY`, uploads JSON + HDR logs as artifacts |
 
+- **Coherence:** the `ts` job also runs `node bin/coherence-check.mjs`, which fails on dangling `@spec` references. It scans code, tests, the Dockerfile, workflows, scripts, tsconfigs and the README.
 - **Benchmark noise:** `bench-smoke` numbers are labelled *"GitHub-hosted runner (shared, noisy): regression signal only"*. A regression fails the job only if p99 exceeds 5× the committed baseline, and the threshold is deliberately loose for noisy runners.
 - **Speed:** `ts` and `rust` together take under 5 minutes. The workflow uses pnpm store caching and `Swatinem/rust-cache`.
 

@@ -1,20 +1,12 @@
 import type { SourceId } from '@soltape/shared';
 import { describe, expect, it, vi } from 'vitest';
 import { Reconciler } from '../../src/reconcile/reconciler.js';
-import {
-  DEFAULT_THRESHOLDS,
-  type Consolidated,
-  type ConsolidatedListener,
-  type EmitStamps,
-  type ObservationView,
-  type PoolUpdateKind,
-} from '../../src/reconcile/types.js';
+import { DEFAULT_THRESHOLDS, type Consolidated, type ConsolidatedListener, type EmitStamps, type ObservationView, type PoolUpdateKind } from '../../src/reconcile/types.js';
 import { FakeClock } from '../support/clock.js';
 import { sqrtForPoolPrice, testModel } from '../support/model.js';
 
 type Ev =
-  | { kind: 'consolidated'; by: string; market: number; c: Consolidated; stamps: EmitStamps }
-  | { kind: 'unavailable'; by: string; market: number; lastKnown: Consolidated | null };
+  { kind: 'consolidated'; by: string; market: number; c: Consolidated; stamps: EmitStamps } | { kind: 'unavailable'; by: string; market: number; lastKnown: Consolidated | null };
 
 const SOL = 0;
 const JUP = 1;
@@ -66,7 +58,17 @@ function setup() {
     },
     pool(index: number, priceBperA: number, o: { liq?: number; tick?: number; slot?: number; kind?: PoolUpdateKind; sqrt?: number } = {}) {
       const p = model.pools[index]!;
-      rec.onPoolUpdate(index, o.sqrt ?? sqrtForPoolPrice(p, priceBperA), o.liq ?? 1e12, o.tick ?? 0, o.slot ?? ++slot, clock.mono(), clock.wall(), clock.mono(), o.kind ?? 'notification');
+      rec.onPoolUpdate(
+        index,
+        o.sqrt ?? sqrtForPoolPrice(p, priceBperA),
+        o.liq ?? 1e12,
+        o.tick ?? 0,
+        o.slot ?? ++slot,
+        clock.mono(),
+        clock.wall(),
+        clock.mono(),
+        o.kind ?? 'notification',
+      );
     },
     quote(market: number, price: number, blockId: number | null = slot) {
       rec.onQuote(market, price, blockId, clock.mono(), clock.wall());
@@ -574,7 +576,10 @@ describe('consolidation', () => {
     h.pool(0, 100, { slot: 2000 });
     h.quote(SOL, 100.1, 1990);
     h.pool(1, 100.2, { slot: 2001 });
-    const e = h.gw().filter((x): x is Extract<Ev, { kind: 'consolidated' }> => x.kind === 'consolidated').at(-1)!;
+    const e = h
+      .gw()
+      .filter((x): x is Extract<Ev, { kind: 'consolidated' }> => x.kind === 'consolidated')
+      .at(-1)!;
     const c = e.c;
     expect(c.mint).toBe(h.model.markets[SOL]!.mint);
     expect(c.symbol).toBe('SOL');

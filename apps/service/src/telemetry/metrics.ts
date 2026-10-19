@@ -194,8 +194,12 @@ export class Telemetry implements TelemetryHooks {
     marketGauge('soltape_consolidated_sources', 'Eligible sources in the consolidated price', (m) => (rec.available(m) ? (rec.consolidated(m)?.sources.length ?? 0) : 0));
     marketGauge('soltape_consolidated_degraded', '1 if fewer sources than configured contribute', (m) => (rec.available(m) ? (rec.consolidated(m)?.degraded ? 1 : 0) : 1));
     marketGauge('soltape_consolidated_spread_bps', 'Spread across eligible sources', (m) => (rec.available(m) ? (rec.consolidated(m)?.spreadBps ?? null) : null));
-    counter('soltape_consolidated_updates_total', 'Consolidated updates emitted', ['mint', 'symbol'], () => markets.map((m): [Record<string, string>, number] => [{ mint: m.mint, symbol: m.symbol }, rec.emittedCount(m.index)]));
-    counter('soltape_updates_suppressed_total', 'Inputs that changed nothing (no emission)', ['mint', 'symbol'], () => markets.map((m): [Record<string, string>, number] => [{ mint: m.mint, symbol: m.symbol }, rec.suppressedCount(m.index)]));
+    counter('soltape_consolidated_updates_total', 'Consolidated updates emitted', ['mint', 'symbol'], () =>
+      markets.map((m): [Record<string, string>, number] => [{ mint: m.mint, symbol: m.symbol }, rec.emittedCount(m.index)]),
+    );
+    counter('soltape_updates_suppressed_total', 'Inputs that changed nothing (no emission)', ['mint', 'symbol'], () =>
+      markets.map((m): [Record<string, string>, number] => [{ mint: m.mint, symbol: m.symbol }, rec.suppressedCount(m.index)]),
+    );
 
     // Gateway
     const g = src.gateway.stats;
@@ -208,11 +212,15 @@ export class Telemetry implements TelemetryHooks {
     const p = src.persistence;
     if (p) {
       const sinks = ['redis', 'pg_observations', 'pg_consolidated'] as const;
-      gauge('soltape_persist_queue_depth', 'Rows (or markets, for redis) waiting to be written', ['sink'], () => sinks.map((s): [Record<string, string>, number] => [{ sink: s }, p.queueDepth(s)]));
+      gauge('soltape_persist_queue_depth', 'Rows (or markets, for redis) waiting to be written', ['sink'], () =>
+        sinks.map((s): [Record<string, string>, number] => [{ sink: s }, p.queueDepth(s)]),
+      );
       counter('soltape_persist_dropped_total', 'Rows dropped (queue full or failed batch)', ['sink'], () =>
         (['pg_observations', 'pg_consolidated'] as const).map((s): [Record<string, string>, number] => [{ sink: s }, p.dropped(s)]),
       );
-      gauge('soltape_persist_state', '1 if the sink is up', ['sink'], () => sinks.map((s): [Record<string, string>, number] => [{ sink: s }, p.state(s === 'redis' ? 'redis' : 'postgres') === 'up' ? 1 : 0]));
+      gauge('soltape_persist_state', '1 if the sink is up', ['sink'], () =>
+        sinks.map((s): [Record<string, string>, number] => [{ sink: s }, p.state(s === 'redis' ? 'redis' : 'postgres') === 'up' ? 1 : 0]),
+      );
     }
   }
 

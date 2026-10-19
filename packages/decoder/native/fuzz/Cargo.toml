@@ -1,0 +1,26 @@
+[package]
+name = "soltape-decoder-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+soltape-decoder-core = { path = "../core" }
+
+[[bin]]
+name = "decode_notification"
+path = "fuzz_targets/decode_notification.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "decode_account"
+path = "fuzz_targets/decode_account.rs"
+test = false
+doc = false
+bench = false

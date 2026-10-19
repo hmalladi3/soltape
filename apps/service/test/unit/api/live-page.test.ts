@@ -15,7 +15,17 @@ describe('live page', () => {
 
   // @spec API-UI-002
   it('renders a row per market with price, flags, the deviation strip, spread, slot and age', () => {
-    for (const hook of ['buildRows', 'renderPrice', 'renderStrip', 'sources disagree', 'no eligible source', '.spread', '.slot', 'fmtAge', "classList.add(data.price > prev ? 'up' : 'down')"]) {
+    for (const hook of [
+      'buildRows',
+      'renderPrice',
+      'renderStrip',
+      'sources disagree',
+      'no eligible source',
+      '.spread',
+      '.slot',
+      'fmtAge',
+      "classList.add(data.price > prev ? 'up' : 'down')",
+    ]) {
       expect(script).toContain(hook);
     }
     expect(script).toContain("JSON.stringify({ op: 'subscribe', mints: ['*'] })");

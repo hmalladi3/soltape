@@ -1,0 +1,7 @@
+dist
+node_modules
+target
+fixtures
+packages/decoder/fixtures
+pnpm-lock.yaml
+*.md

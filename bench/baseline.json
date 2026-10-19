@@ -1,0 +1,7 @@
+{
+  "_comment": "CI budget for the quick matrix: e2e p99 in microseconds per 'rate x subscribers'. Values are the M4 quick-run p99 floored at 1000 us (runners are noisier than a laptop). 10000x100 is the known fan-out knee (Phase 7) and is not gated yet.",
+  "1000x1": 1000,
+  "10000x1": 1000,
+  "1000x100": 1000,
+  "10000x100": null
+}

@@ -41,12 +41,15 @@ export async function maintainPartitions(client: PoolClient, nowWall: number, re
         const name = dayName(table, from);
         if (existing.has(name)) continue;
         const range = `FOR VALUES FROM ('${iso(from)}') TO ('${iso(from + DAY_MS)}')`;
-        const stray = Number((await client.query(`SELECT count(*)::int AS n FROM ${table}_default WHERE ts >= $1 AND ts < $2`, [iso(from), iso(from + DAY_MS)])).rows[0].n);
+        const stray = (await client.query<{ n: number }>(`SELECT count(*)::int AS n FROM ${table}_default WHERE ts >= $1 AND ts < $2`, [iso(from), iso(from + DAY_MS)])).rows[0]!.n;
         if (stray === 0) {
           await client.query(`CREATE TABLE ${name} PARTITION OF ${table} ${range}`);
         } else {
           await client.query(`CREATE TABLE ${name} (LIKE ${table} INCLUDING DEFAULTS INCLUDING CONSTRAINTS)`);
-          await client.query(`WITH moved AS (DELETE FROM ${table}_default WHERE ts >= $1 AND ts < $2 RETURNING *) INSERT INTO ${name} SELECT * FROM moved`, [iso(from), iso(from + DAY_MS)]);
+          await client.query(`WITH moved AS (DELETE FROM ${table}_default WHERE ts >= $1 AND ts < $2 RETURNING *) INSERT INTO ${name} SELECT * FROM moved`, [
+            iso(from),
+            iso(from + DAY_MS),
+          ]);
           await client.query(`ALTER TABLE ${table} ATTACH PARTITION ${name} ${range}`);
           report.moved.push({ partition: name, rows: stray });
         }
@@ -63,7 +66,7 @@ export async function maintainPartitions(client: PoolClient, nowWall: number, re
           report.dropped.push(name);
         }
       }
-      report.defaultRows[table] = Number((await client.query(`SELECT count(*)::int AS n FROM ${table}_default`)).rows[0].n);
+      report.defaultRows[table] = (await client.query<{ n: number }>(`SELECT count(*)::int AS n FROM ${table}_default`)).rows[0]!.n;
     }
     await client.query('COMMIT');
     return report;

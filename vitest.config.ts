@@ -10,7 +10,6 @@ export default defineConfig({
       '@soltape/decoder': src('./packages/decoder/src/index.ts'),
       '@soltape/service': src('./apps/service/src'),
       '@soltape/replay': src('./apps/replay/src'),
-
     },
   },
   test: {

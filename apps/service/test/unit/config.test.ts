@@ -57,9 +57,22 @@ describe('markets file', () => {
   // @spec RUN-CFG-004
   it.each([
     ['venue with neither pool nor route', (m: MarketsFile) => ((m.markets[0]!.venues as Record<string, unknown>).orca = {})],
-    ['venue with both pool and route', (m: MarketsFile) => ((m.markets[0]!.venues as Record<string, unknown>).orca = { pool: markets.markets[0]!.venues.raydium && 'Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE', route: ['Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE', '3ucNos4NbumPLZNWztqGHNFFgkHeRMBQAVemeeomsUxv'] })],
+    [
+      'venue with both pool and route',
+      (m: MarketsFile) =>
+        ((m.markets[0]!.venues as Record<string, unknown>).orca = {
+          pool: markets.markets[0]!.venues.raydium && 'Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE',
+          route: ['Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE', '3ucNos4NbumPLZNWztqGHNFFgkHeRMBQAVemeeomsUxv'],
+        }),
+    ],
     ['route with one leg', (m: MarketsFile) => ((m.markets[1]!.venues as Record<string, unknown>).orca = { route: ['C1MgLojNLWBKADvu9BHdtgzz1oZX4dZ5zGdGcgvvW8Wz'] })],
-    ['route with three legs', (m: MarketsFile) => ((m.markets[1]!.venues as Record<string, unknown>).orca = { route: ['C1MgLojNLWBKADvu9BHdtgzz1oZX4dZ5zGdGcgvvW8Wz', 'Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE', 'Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE'] })],
+    [
+      'route with three legs',
+      (m: MarketsFile) =>
+        ((m.markets[1]!.venues as Record<string, unknown>).orca = {
+          route: ['C1MgLojNLWBKADvu9BHdtgzz1oZX4dZ5zGdGcgvvW8Wz', 'Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE', 'Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE'],
+        }),
+    ],
     ['jupiter with options', (m: MarketsFile) => ((m.markets[0]!.venues as Record<string, unknown>).jupiter = { x: 1 })],
     ['unknown venue', (m: MarketsFile) => ((m.markets[0]!.venues as Record<string, unknown>).phoenix = { pool: 'Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE' })],
     ['market with no venues', (m: MarketsFile) => (m.markets[0]!.venues = {})],

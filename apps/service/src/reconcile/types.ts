@@ -1,16 +1,7 @@
 import type { SourceId, SourceState } from '@soltape/shared';
 
 export type ExclusionReason =
-  | 'source_disabled'
-  | 'misconfigured'
-  | 'no_data'
-  | 'source_down'
-  | 'source_stale'
-  | 'source_recovering'
-  | 'decode_error'
-  | 'expired'
-  | 'invalid_value'
-  | 'outlier';
+  'source_disabled' | 'misconfigured' | 'no_data' | 'source_down' | 'source_stale' | 'source_recovering' | 'decode_error' | 'expired' | 'invalid_value' | 'outlier';
 
 export interface Exclusion {
   source: string;
@@ -89,17 +80,7 @@ export type PoolUpdateKind = 'notification' | 'snapshot' | 'revalidation';
 
 /** What source adapters report (ING-SRC-001). Hot-path methods take scalars, not objects. */
 export interface SourceSink {
-  onPoolUpdate(
-    pool: number,
-    sqrtRatio: number,
-    liquidity: number,
-    tick: number,
-    slot: number,
-    recvTs: number,
-    recvWall: number,
-    decodedTs: number,
-    kind: PoolUpdateKind,
-  ): void;
+  onPoolUpdate(pool: number, sqrtRatio: number, liquidity: number, tick: number, slot: number, recvTs: number, recvWall: number, decodedTs: number, kind: PoolUpdateKind): void;
   onQuote(market: number, price: number, blockId: number | null, recvTs: number, recvWall: number): void;
   onSlot(source: SourceId, slot: number | null, recvTs: number): void;
   onSourceState(source: SourceId, state: 'disabled' | 'connecting' | 'live' | 'down'): void;

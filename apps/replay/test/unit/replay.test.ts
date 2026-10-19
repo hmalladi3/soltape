@@ -44,7 +44,19 @@ async function client(port: number) {
     ws.send(JSON.stringify({ jsonrpc: '2.0', id: myId, method, ...(params ? { params } : {}) }));
     return waitFor(() => msgs.map((m) => JSON.parse(m)).find((m) => m.id === myId));
   };
-  return { ws, msgs, call, parsed: () => msgs.flatMap((m) => { try { return [JSON.parse(m)]; } catch { return [{ raw: m }]; } }) };
+  return {
+    ws,
+    msgs,
+    call,
+    parsed: () =>
+      msgs.flatMap((m) => {
+        try {
+          return [JSON.parse(m)];
+        } catch {
+          return [{ raw: m }];
+        }
+      }),
+  };
 }
 
 const rpc = (base: string, method: string, params: unknown[]) =>
@@ -174,7 +186,10 @@ describe('replay server: protocol', () => {
     const c = await client(s.port);
     await c.call('accountSubscribe', [ORCA_SOL]);
     await waitFor(() => s.stats.loops >= 2, 3000);
-    const slots = c.parsed().filter((m) => m.method === 'accountNotification').map((m) => m.params.result.context.slot);
+    const slots = c
+      .parsed()
+      .filter((m) => m.method === 'accountNotification')
+      .map((m) => m.params.result.context.slot);
     expect(slots.length).toBeGreaterThanOrEqual(2);
     for (let i = 1; i < slots.length; i++) expect(slots[i]).toBeGreaterThan(slots[i - 1]);
   });
@@ -213,7 +228,10 @@ describe('replay server: rate mode', () => {
     for (let i = 1; i < slots.length; i++) expect(slots[i]).toBeGreaterThan(slots[i - 1]);
     expect(run.intendedNs[1]! - run.intendedNs[0]!).toBeCloseTo(500_000, 0);
     // Consecutive updates of one pool carry different prices.
-    const pool0 = notes.filter((n) => n.params.subscription === notes[0].params.subscription).slice(0, 2).map((n) => n.params.result.value.data[0]);
+    const pool0 = notes
+      .filter((n) => n.params.subscription === notes[0].params.subscription)
+      .slice(0, 2)
+      .map((n) => n.params.result.value.data[0]);
     expect(pool0[0]).not.toBe(pool0[1]);
     const log = await fetch(`${base}/control/sendlog`);
     expect(log.headers.get('x-count')).toBe('600');

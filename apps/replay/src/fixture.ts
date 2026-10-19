@@ -96,7 +96,7 @@ export function parseFixture(text: string): Fixture {
     else if (l.kind === 'account') accounts.set(l.address, l);
     else if (l.kind === 'frame') frames.push(l);
     else if (l.kind === 'slot') slots.push(l);
-    else if (l.kind === 'jupiter') jupiter.push(l);
+    else jupiter.push(l);
   }
   if (!header) throw new Error('fixture has no header line');
   if (header.version !== FIXTURE_VERSION) throw new Error(`fixture version ${header.version}, expected ${FIXTURE_VERSION}`);

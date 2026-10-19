@@ -16,9 +16,7 @@ export interface Fixtures {
   mints: AccountFixture[];
 }
 
-export const fixtures: Fixtures = JSON.parse(
-  readFileSync(fileURLToPath(new URL('../fixtures/accounts.json', import.meta.url)), 'utf8'),
-) as Fixtures;
+export const fixtures: Fixtures = JSON.parse(readFileSync(fileURLToPath(new URL('../fixtures/accounts.json', import.meta.url)), 'utf8')) as Fixtures;
 
 export const WHIRLPOOL_PROGRAM = 'whirLbMiicVdio4qvUfM5KAg6Ct8VwpYzGff3uctyCc';
 export const RAYDIUM_CLMM_PROGRAM = 'CAMMCzo5YL8w4VFF8KVHrK22GGUsp5VTaW7grrKgrWqK';
@@ -51,7 +49,7 @@ export function accountFrame(dataB64: string, opts: AccountFrameOptions = {}): s
     executable: false,
     lamports: 13645859,
     owner: RAYDIUM_CLMM_PROGRAM,
-    rentEpoch: 18446744073709551615,
+    rentEpoch: Number.MAX_SAFE_INTEGER,
     space: Buffer.from(dataB64, 'base64').length,
   };
   const frame = {
@@ -77,7 +75,11 @@ export function slotFrame(slot: number, sub = 7): string {
 function reverseDeep(v: unknown): unknown {
   if (Array.isArray(v)) return v.map(reverseDeep);
   if (v !== null && typeof v === 'object') {
-    return Object.fromEntries(Object.entries(v).reverse().map(([k, x]) => [k, reverseDeep(x)]));
+    return Object.fromEntries(
+      Object.entries(v)
+        .reverse()
+        .map(([k, x]) => [k, reverseDeep(x)]),
+    );
   }
   return v;
 }

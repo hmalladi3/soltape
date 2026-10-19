@@ -19,7 +19,9 @@ export interface MachineSpec {
 export function machineSpec(): MachineSpec {
   const run = (cmd: string) => {
     try {
-      return execSync(cmd, { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
+      return execSync(cmd, { stdio: ['ignore', 'pipe', 'ignore'] })
+        .toString()
+        .trim();
     } catch {
       return 'unknown';
     }
@@ -33,8 +35,12 @@ export function machineSpec(): MachineSpec {
     memoryGb: Math.round(os.totalmem() / 2 ** 30),
     node: process.version,
     rust: run('rustc --version'),
-    commit: run('git rev-parse --short HEAD'),
-    label: ci ? 'GitHub-hosted runner (shared, noisy): regression signal only' : os.platform() === 'linux' ? 'local Linux host' : `non-Linux host (${os.platform()}): indicative only; headline numbers come from Linux`,
+    commit: process.env['SOLTAPE_COMMIT'] && process.env['SOLTAPE_COMMIT'] !== 'unknown' ? process.env['SOLTAPE_COMMIT'] : run('git rev-parse --short HEAD'),
+    label: ci
+      ? 'GitHub-hosted runner (shared, noisy): regression signal only'
+      : os.platform() === 'linux'
+        ? 'local Linux host'
+        : `non-Linux host (${os.platform()}): indicative only; headline numbers come from Linux`,
   };
 }
 
@@ -48,7 +54,9 @@ export function renderMarkdown(cells: CellResult[], m: MachineSpec, meta: { dura
         `| ${c.rate.toLocaleString('en-US')} | ${c.subscribers} | ${us(c.e2e.p50)} | ${us(c.e2e.p99)} | ${us(c.e2e.p999)} | ${us(c.e2e.max)} | ${us(c.internal.p50)} | ${us(c.internal.p99)} | ${us(c.internal.p999)} | ${c.eventLoopP99Ms.toFixed(2)} ms | ${(c.e2e.conflationRatio * 100).toFixed(2)}% | ${Math.round(c.rssMb)} MB | ${Math.round(c.gcPauseMs)} ms | ${c.persistDrops} |`,
     )
     .join('\n');
-  const k = [...knee(cells)].map(([s, v]) => `- ${s} subscriber${s === 1 ? '' : 's'}: ${v ? `knee at ${v.rate.toLocaleString('en-US')} updates/s (${v.reason})` : 'no knee within the tested rates'}`).join('\n');
+  const k = [...knee(cells)]
+    .map(([s, v]) => `- ${s} subscriber${s === 1 ? '' : 's'}: ${v ? `knee at ${v.rate.toLocaleString('en-US')} updates/s (${v.reason})` : 'no knee within the tested rates'}`)
+    .join('\n');
   return `## soltape benchmark
 
 **${m.label}**

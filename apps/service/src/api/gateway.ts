@@ -76,7 +76,15 @@ export class WsGateway implements ConsolidatedListener {
   private readonly log: Logger;
 
   constructor(
-    private readonly d: { model: MarketModel; source: SnapshotSource; clock: Clock; logger: Logger; latency?: LatencyWindow; telemetry?: TelemetryHooks; options?: Partial<GatewayOptions> },
+    private readonly d: {
+      model: MarketModel;
+      source: SnapshotSource;
+      clock: Clock;
+      logger: Logger;
+      latency?: LatencyWindow;
+      telemetry?: TelemetryHooks;
+      options?: Partial<GatewayOptions>;
+    },
   ) {
     this.o = { ...DEFAULT_GATEWAY_OPTIONS, ...d.options };
     this.subscribers = d.model.markets.map(() => []);
@@ -102,7 +110,10 @@ export class WsGateway implements ConsolidatedListener {
         new Promise<void>((resolve) => {
           c.ws.once('close', () => resolve());
           c.ws.close(code, reason);
-          setTimeout(() => (c.ws.terminate(), resolve()), 1000).unref();
+          setTimeout(() => {
+            c.ws.terminate();
+            resolve();
+          }, 1000).unref();
         }),
     );
     await Promise.all(closing);
@@ -125,15 +136,18 @@ export class WsGateway implements ConsolidatedListener {
   private onMessage(c: Client, data: RawData, isBinary: boolean): void {
     let msg: unknown;
     try {
-      msg = isBinary ? undefined : JSON.parse(String(data));
+      msg = isBinary ? undefined : JSON.parse((data as Buffer).toString('utf8'));
     } catch {
       msg = undefined;
     }
     const op = typeof msg === 'object' && msg !== null && !Array.isArray(msg) ? (msg as { op?: unknown }).op : undefined;
     const mints = (msg as { mints?: unknown } | undefined)?.mints;
-    if (op === 'ping') return this.sendNow(c, Buffer.from('{"type":"pong"}'));
+    if (op === 'ping') {
+      this.sendNow(c, Buffer.from('{"type":"pong"}'));
+      return;
+    }
     if ((op === 'subscribe' || op === 'unsubscribe') && Array.isArray(mints) && mints.every((m) => typeof m === 'string')) {
-      return op === 'subscribe' ? this.subscribe(c, mints as string[]) : this.unsubscribe(c, mints as string[]);
+      return op === 'subscribe' ? this.subscribe(c, mints) : this.unsubscribe(c, mints);
     }
     this.strike(c, 'BAD_MESSAGE', 'expected {"op":"subscribe"|"unsubscribe","mints":[...]} or {"op":"ping"}');
   }
@@ -242,7 +256,13 @@ export class WsGateway implements ConsolidatedListener {
     const src = c.trigger.source;
     const venue = src.startsWith('orca') ? 'orca' : src.startsWith('raydium') ? 'raydium' : src === 'jupiter' ? 'jupiter' : 'sweep';
     const decoded = stamps.decodedTs ?? stamps.recvTs ?? stamps.reconciledTs;
-    t.emitted(venue, stamps.decodedTs !== null && stamps.recvTs !== null ? stamps.decodedTs - stamps.recvTs : null, stamps.reconciledTs - decoded, t3 - stamps.reconciledTs, internal);
+    t.emitted(
+      venue,
+      stamps.decodedTs !== null && stamps.recvTs !== null ? stamps.decodedTs - stamps.recvTs : null,
+      stamps.reconciledTs - decoded,
+      t3 - stamps.reconciledTs,
+      internal,
+    );
   }
 
   // @spec API-WS-008

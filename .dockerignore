@@ -1,0 +1,9 @@
+**/node_modules
+**/dist
+**/target
+**/*.node
+.git
+bench/results
+coverage
+docs
+**/*.tsbuildinfo

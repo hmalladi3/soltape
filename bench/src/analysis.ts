@@ -112,7 +112,11 @@ export function knee(cells: CellResult[]): Map<number, { rate: number; reason: s
         ? {
             rate: hit.rate,
             reason:
-              hit.e2e.p99 > KNEE_LIMITS.e2eP99Us ? `e2e p99 ${(hit.e2e.p99 / 1000).toFixed(2)} ms` : hit.e2e.conflationRatio > KNEE_LIMITS.conflation ? `conflation ${(hit.e2e.conflationRatio * 100).toFixed(1)}%` : `event-loop p99 ${hit.eventLoopP99Ms.toFixed(2)} ms`,
+              hit.e2e.p99 > KNEE_LIMITS.e2eP99Us
+                ? `e2e p99 ${(hit.e2e.p99 / 1000).toFixed(2)} ms`
+                : hit.e2e.conflationRatio > KNEE_LIMITS.conflation
+                  ? `conflation ${(hit.e2e.conflationRatio * 100).toFixed(1)}%`
+                  : `event-loop p99 ${hit.eventLoopP99Ms.toFixed(2)} ms`,
           }
         : null,
     );

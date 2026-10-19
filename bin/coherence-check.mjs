@@ -10,13 +10,14 @@ const prefixArg = args.indexOf('--prefix');
 const prefixes = prefixArg >= 0 ? args[prefixArg + 1].split(',') : null;
 const inScope = (id) => !prefixes || prefixes.some((p) => id.startsWith(p + '-'));
 
-const SKIP = new Set(['node_modules', 'dist', 'target', '.git', 'docs', 'fixtures', 'coverage']);
+// .github is scanned (workflows carry @spec comments); other dot-directories are not.
+const SKIP = new Set(['node_modules', 'dist', 'target', '.git', 'docs', 'fixtures', 'coverage', 'results']);
 function* walk(dir) {
   for (const name of readdirSync(dir)) {
-    if (SKIP.has(name)) continue;
+    if (SKIP.has(name) || (name.startsWith('.') && name !== '.github' && name !== '.github/workflows')) continue;
     const p = join(dir, name);
     if (statSync(p).isDirectory()) yield* walk(p);
-    else if (/\.(ts|tsx|js|mjs|rs|html)$/.test(name)) yield p;
+    else if (/\.(ts|tsx|js|mjs|rs|html|ya?ml|sh)$/.test(name) || name === 'Dockerfile' || name === 'README.md' || /^tsconfig.*\.json$/.test(name)) yield p;
   }
 }
 
@@ -36,7 +37,7 @@ for (const file of walk(root)) {
   const kind = /(^|\/)(test|tests)\//.test(rel) || /\.test\.ts$/.test(rel) ? 'test' : 'code';
   const text = readFileSync(file, 'utf8');
   for (const m of text.matchAll(/@spec\s+([A-Z0-9, -]+)/g)) {
-    for (const id of m[1].split(',').map((s) => s.trim()).filter(Boolean)) {
+    for (const id of m[1].match(/[A-Z]+-[A-Z]+-\d{3}/g) ?? []) {
       if (!refs[kind].has(id)) refs[kind].set(id, new Set());
       refs[kind].get(id).add(rel);
     }

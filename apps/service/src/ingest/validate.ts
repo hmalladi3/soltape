@@ -17,9 +17,7 @@ export interface PoolProblem {
   message: string;
 }
 
-export type VenueValidation =
-  | { kind: 'unreachable'; failure: RpcFailure }
-  | { kind: 'checked'; facts: Map<string, PoolFacts>; problems: PoolProblem[] };
+export type VenueValidation = { kind: 'unreachable'; failure: RpcFailure } | { kind: 'checked'; facts: Map<string, PoolFacts>; problems: PoolProblem[] };
 
 /**
  * Fetches and checks a venue's pools: each account must exist, be owned by the venue's

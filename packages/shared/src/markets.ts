@@ -25,7 +25,7 @@ export interface MarketsFile {
 }
 
 const B58 = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
-const B58_INDEX = new Map([...B58].map((c, i) => [c, BigInt(i)]));
+const B58_INDEX = new Map(Array.from(B58, (c, i) => [c, BigInt(i)] as const));
 
 /** True when `s` is base58 that decodes to exactly 32 bytes. */
 export function isPubkey(s: string): boolean {

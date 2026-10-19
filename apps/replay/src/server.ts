@@ -55,6 +55,7 @@ export interface RateRun {
 const SLOT_SUB = 1;
 const SUB_BASE = 1000;
 const VARIANTS = 64;
+const RENT_EPOCH_PLACEHOLDER = '__RENT_EPOCH_U64_MAX__';
 
 /**
  * Stands in for a Solana RPC node and Jupiter: JSON-RPC over WebSocket and HTTP, the Price API
@@ -133,9 +134,9 @@ export class ReplayServer {
     ws.on('message', (raw) => {
       let msg: { id?: unknown; method?: string; params?: unknown[] };
       try {
-        msg = JSON.parse(String(raw)) as typeof msg;
+        msg = JSON.parse((raw as Buffer).toString('utf8')) as typeof msg;
       } catch {
-        return void ws.send(rpcError(null, -32700, 'Parse error'));
+        return ws.send(rpcError(null, -32700, 'Parse error'));
       }
       const { id, method, params = [] } = msg;
       if (method === 'slotSubscribe') {
@@ -144,7 +145,7 @@ export class ReplayServer {
       } else if (method === 'accountSubscribe') {
         const address = String(params[0]);
         const venue = this.venueOf.get(address) ?? null;
-        if (venue && this.faults.dropped.has(venue)) return void ws.terminate();
+        if (venue && this.faults.dropped.has(venue)) return ws.terminate();
         c.venue ??= venue;
         const sub = this.subIdOf.get(address) ?? SUB_BASE + 1_000_000 + c.subs.size;
         c.subs.set(address, sub);
@@ -205,13 +206,15 @@ export class ReplayServer {
           this.sendAccount(f.address, v, f.slot + off);
         },
       })),
-      ...fx.slots.filter((s) => s.venue === slotVenue).map((s): Ev => ({
-        t: s.t,
-        run: (off) => {
-          this.currentSlot = Math.max(this.currentSlot, s.slot + off);
-          this.sendSlot(s.slot + off);
-        },
-      })),
+      ...fx.slots
+        .filter((s) => s.venue === slotVenue)
+        .map((s): Ev => ({
+          t: s.t,
+          run: (off) => {
+            this.currentSlot = Math.max(this.currentSlot, s.slot + off);
+            this.sendSlot(s.slot + off);
+          },
+        })),
       ...fx.jupiter.map((j): Ev => ({ t: j.t, run: () => (this.jupiterBody = rebaseJupiter(j.body, this.currentSlot)) })),
     ].sort((a, b) => a.t - b.t);
     if (events.length === 0) return;
@@ -253,7 +256,7 @@ export class ReplayServer {
     while (performance.now() < end) {
       for (let k = 0; k < 1000; k++) {
         const p = parts[n % parts.length]![0]!;
-        sink += (p.prefix + ++slot + p.suffix).length;
+        sink += `${p.prefix}${++slot}${p.suffix}`.length;
         n++;
       }
     }
@@ -287,12 +290,25 @@ export class ReplayServer {
     const pools = this.bench.pools;
     const total = Math.floor((rate * (warmupMs + durationMs)) / 1000);
     const periodNs = 1e9 / rate;
-    const run: RateRun = { rate, durationMs, warmupMs, t0: process.hrtime.bigint(), sent: 0, slots: new Float64Array(total), intendedNs: new Float64Array(total), done: Promise.resolve(), running: true };
+    const run: RateRun = {
+      rate,
+      durationMs,
+      warmupMs,
+      t0: process.hrtime.bigint(),
+      sent: 0,
+      slots: new Float64Array(total),
+      intendedNs: new Float64Array(total),
+      done: Promise.resolve(),
+      running: true,
+    };
     const byPool = pools.map((p) => [...this.conns].find((c) => c.subs.has(p.address)) ?? null);
     let lastSlotNotif = 0;
     run.done = new Promise<void>((resolve) => {
       const tick = () => {
-        if (this.stopped) return resolve();
+        if (this.stopped) {
+          resolve();
+          return;
+        }
         // Refresh subscriber lookups occasionally (reconnects during a run).
         if (run.sent % 4096 === 0) pools.forEach((p, i) => (byPool[i] = [...this.conns].find((c) => c.subs.has(p.address)) ?? null));
         const nowNs = Number(process.hrtime.bigint() - run.t0);
@@ -306,7 +322,7 @@ export class ReplayServer {
           const conn = byPool[pi];
           if (conn && !this.faults.stalled.has(pools[pi]!.venue)) {
             const p = parts[pi]![variant]!;
-            conn.ws.send(p.prefix + slot + p.suffix);
+            conn.ws.send(`${p.prefix}${slot}${p.suffix}`);
           }
           run.sent++;
         }
@@ -316,7 +332,8 @@ export class ReplayServer {
         }
         if (run.sent >= total) {
           run.running = false;
-          return resolve();
+          resolve();
+          return;
         }
         setImmediate(tick);
       };
@@ -331,11 +348,23 @@ export class ReplayServer {
   private async onHttp(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const url = new URL(req.url ?? '/', 'http://replay');
     const body = req.method === 'POST' ? await readBody(req) : '';
-    if (url.pathname === '/' && req.method === 'POST') return this.onRpcHttp(body, res);
+    if (url.pathname === '/' && req.method === 'POST') {
+      this.onRpcHttp(body, res);
+      return;
+    }
     if (url.pathname === '/price/v3' && req.method === 'GET') return this.onJupiter(req, res);
-    if (url.pathname === '/control' && req.method === 'POST') return this.onControl(body, res);
-    if (url.pathname === '/control/status') return json(res, 200, this.status());
-    if (url.pathname === '/control/sendlog') return this.onSendLog(res);
+    if (url.pathname === '/control' && req.method === 'POST') {
+      this.onControl(body, res);
+      return;
+    }
+    if (url.pathname === '/control/status') {
+      json(res, 200, this.status());
+      return;
+    }
+    if (url.pathname === '/control/sendlog') {
+      this.onSendLog(res);
+      return;
+    }
     json(res, 404, { error: 'not found' });
   }
 
@@ -357,17 +386,27 @@ export class ReplayServer {
         this.o.logger.error({ address: k }, `fixture does not cover ${k}; run pnpm record`);
         return null;
       }
-      return { data: [a.data, 'base64'], executable: false, lamports: a.lamports, owner: a.owner, rentEpoch: 18446744073709551615, space: a.space };
+      return { data: [a.data, 'base64'], executable: false, lamports: a.lamports, owner: a.owner, rentEpoch: RENT_EPOCH_PLACEHOLDER, space: a.space };
     });
-    json(res, 200, { jsonrpc: '2.0', result: { context: { slot: this.currentSlot }, value }, id: msg.id });
+    // u64::MAX does not survive a JS number; splice the exact literal Solana sends.
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(
+      JSON.stringify({ jsonrpc: '2.0', result: { context: { slot: this.currentSlot }, value }, id: msg.id }).replaceAll(`"${RENT_EPOCH_PLACEHOLDER}"`, '18446744073709551615'),
+    );
   }
 
   /** @spec RPL-SRV-002, RPL-FLT-005 */
   private async onJupiter(req: IncomingMessage, res: ServerResponse): Promise<void> {
-    if (!req.headers['x-api-key']) return json(res, 401, { error: 'missing x-api-key' });
+    if (!req.headers['x-api-key']) {
+      json(res, 401, { error: 'missing x-api-key' });
+      return;
+    }
     const f = this.faults.jupiter;
     if (f.delayMs) await new Promise((r) => setTimeout(r, f.delayMs));
-    if (f.status) return json(res, f.status, { error: 'injected fault' });
+    if (f.status) {
+      json(res, f.status, { error: 'injected fault' });
+      return;
+    }
     res.writeHead(200, { 'content-type': 'application/json' });
     res.end(this.jupiterBody);
   }
@@ -454,7 +493,13 @@ export class ReplayServer {
       buf.writeDoubleLE(r.slots[i]!, i * 16);
       buf.writeDoubleLE(r.intendedNs[i]!, i * 16 + 8);
     }
-    res.writeHead(200, { 'content-type': 'application/octet-stream', 'x-t0-ns': r.t0.toString(), 'x-count': String(n), 'x-warmup-ms': String(r.warmupMs), 'x-rate': String(r.rate) });
+    res.writeHead(200, {
+      'content-type': 'application/octet-stream',
+      'x-t0-ns': r.t0.toString(),
+      'x-count': String(n),
+      'x-warmup-ms': String(r.warmupMs),
+      'x-rate': String(r.rate),
+    });
     res.end(buf);
   }
 }
@@ -463,7 +508,7 @@ export class ReplayServer {
 function rebaseJupiter(body: string, slot: number): string {
   try {
     const o = JSON.parse(body) as Record<string, { blockId?: number }>;
-    for (const v of Object.values(o)) if (v && typeof v === 'object' && 'blockId' in v) v.blockId = slot;
+    for (const v of Object.values(o)) if (typeof v === 'object' && 'blockId' in v) v.blockId = slot;
     return JSON.stringify(o);
   } catch {
     return body;

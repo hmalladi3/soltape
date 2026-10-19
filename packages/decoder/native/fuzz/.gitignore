@@ -1,0 +1,7 @@
+fuzz/target
+fuzz/artifacts
+fuzz/coverage
+# Only the hand-made seeds (real fixture frames) are committed; inputs found by fuzzing stay local.
+corpus/*/*
+!corpus/*/pool*
+!corpus/*/slot.json

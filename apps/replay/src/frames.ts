@@ -19,7 +19,7 @@ export function accountFrameParts(v: AccountValue, sub: number): { prefix: strin
 
 export function accountFrame(v: AccountValue, sub: number, slot: number): string {
   const p = accountFrameParts(v, sub);
-  return p.prefix + slot + p.suffix;
+  return `${p.prefix}${slot}${p.suffix}`;
 }
 
 export function slotFrame(sub: number, slot: number): string {

@@ -93,7 +93,13 @@ async function getMultiple(url: string, keys: string[]): Promise<FixtureAccount[
   const out: FixtureAccount[] = [];
   for (let i = 0; i < keys.length; i += 100) {
     const batch = keys.slice(i, i + 100);
-    const r = (await (await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'getMultipleAccounts', params: [batch, { encoding: 'base64', commitment: 'processed' }] }) })).json()) as {
+    const r = (await (
+      await fetch(url, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'getMultipleAccounts', params: [batch, { encoding: 'base64', commitment: 'processed' }] }),
+      })
+    ).json()) as {
       result: { context: { slot: number }; value: ({ owner: string; data: [string, string] } | null)[] };
     };
     r.result.value.forEach((v, j) => {
@@ -121,7 +127,15 @@ function subscribe(url: string, venue: PoolVenue, addresses: string[], frames: F
     ws.on('message', (raw: Buffer) => {
       const t = us();
       const body = raw.toString('utf8');
-      const m = JSON.parse(body) as { id?: number; result?: number; method?: string; params?: { subscription: number; result: { slot?: number; context?: { slot: number }; value?: { data: [string, string]; lamports: number; owner: string; space: number } } } };
+      const m = JSON.parse(body) as {
+        id?: number;
+        result?: number;
+        method?: string;
+        params?: {
+          subscription: number;
+          result: { slot?: number; context?: { slot: number }; value?: { data: [string, string]; lamports: number; owner: string; space: number } };
+        };
+      };
       if (m.id !== undefined) {
         if (m.id === 1 && typeof m.result === 'number') slotSub = m.result;
         else if (typeof m.result === 'number' && reqAddr.has(m.id)) subAddr.set(m.result, reqAddr.get(m.id)!);
@@ -142,7 +156,9 @@ function subscribe(url: string, venue: PoolVenue, addresses: string[], frames: F
 
 function gitCommit(): string {
   try {
-    return execSync('git rev-parse --short HEAD', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
+    return execSync('git rev-parse --short HEAD', { stdio: ['ignore', 'pipe', 'ignore'] })
+      .toString()
+      .trim();
   } catch {
     return 'unknown';
   }

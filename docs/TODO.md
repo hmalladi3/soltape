@@ -2,18 +2,20 @@
 
 ## In progress
 
-- Wave 7: delivery: Dockerfile, compose (live, replay, bench profiles; configurable host port), GitHub Actions CI (all jobs incl. compose smoke + bench summary), GHCR image publishing, README
+- First push to github.com/hmalladi3/soltape; watch CI; fix runner-specific failures; then mark DLV-* [x]
+- Fill README latency section from the CI bench job (GitHub-hosted Linux runner)
 
 ## Up next
 
 - Phase 7 (after wave 7, on Linux): (1) fan-out collapse at 10k updates/s × 100 subscribers (event loop 591 ms, conflation 65%): per-message ws.send to every subscriber = 1M sends/s; candidate: coalesce each client's pending updates into one frame per tick (protocol change: walk the arrow first); (2) live-frame fan-out of one SOL/USDC update to 5 markets; (3) measure noise floor (A/A) before accepting anything
-- Wave 7: compose host port must be configurable (port 8080 is taken by another container on this machine)
 
 ## Waiting on the user
 
+- After the first image publish: make the GHCR package `soltape` public (GitHub → Packages → soltape → Package settings → Change visibility), so `docker compose up` can pull without login
 
 ## Done
 
+- 2026-10-19: Wave 7 (ESLint strict-type-checked + Prettier, TS 6 for typescript-eslint, Dockerfile, compose live/replay/bench, compose smoke script verified locally, CI + image workflows, cargo-fuzz targets run clean locally, README, delivery tests): 444 unit tests; coherence clean across all 267 active specs. Local Linux-VM bench (Docker Desktop, persistence up) showed heavy tails; headline numbers moved to GitHub Actions
 - 2026-10-19: Wave 6 (recorder with SDK verification, replay server realtime/rate/faults, synthetic bench markets, benchmark orchestrator + load clients + HDR join, decoder microbench): 421 unit tests; RPL-* [x]; first mainnet fixture recorded (414 verified frames); first quick bench on M4: 1 sub no knee to 10k/s (e2e p50 38 µs, internal p99 16 µs), 100 subs knee at 10k/s; fixed event-loop metric (default included the sampling interval)
 - 2026-10-19: Wave 5 (Prometheus metric set with scrape-time counters and gauges, stage histograms, HTTP metrics, rate-limited logs, component on every line, structured config errors): 392 unit tests; OBS-* specs [x]
 - 2026-10-19: Wave 4 (Redis latest snapshot, Postgres partitioned history, migrator, DEFAULT-partition move, bounded writer, read pool): 378 unit + 17 integration tests (real Postgres 17 + Redis 7 via testcontainers); PER-* specs [x]; e2e against mainnet: dependencies up, history buckets served, warm restore serves lastKnown 0.7 s after restart

@@ -36,7 +36,11 @@ function setup() {
       reconciler.onSlot(s, 120, clock.mono());
     }
     reconciler.onSourceState('jupiter', 'disabled');
-    for (const [i, p] of [[0, 100], [1, 100.1]] as const) reconciler.onPoolUpdate(i, sqrtForPoolPrice(model.pools[i]!, p), 1e12, 0, ++slot, clock.mono(), clock.wall(), clock.mono(), 'notification');
+    for (const [i, p] of [
+      [0, 100],
+      [1, 100.1],
+    ] as const)
+      reconciler.onPoolUpdate(i, sqrtForPoolPrice(model.pools[i]!, p), 1e12, 0, ++slot, clock.mono(), clock.wall(), clock.mono(), 'notification');
   };
   const text = async () => (await telemetry.scrape()).body;
   const value = (body: string, metric: string, labels: Record<string, string> = {}) => {
@@ -151,7 +155,7 @@ describe('latency', () => {
     const t = setup();
     const calls: unknown[][] = [];
     const tel = { ...t.telemetry, emitted: (...a: unknown[]) => calls.push(a), decode() {}, request() {}, flush() {} };
-    const g = new WsGateway({ model: t.model, source: t.reconciler, clock, logger: silentLogger, telemetry: tel as never, latency: new LatencyWindow(clock) });
+    const g = new WsGateway({ model: t.model, source: t.reconciler, clock, logger: silentLogger, telemetry: tel, latency: new LatencyWindow(clock) });
     const c = { ...t.reconciler.consolidated(0), trigger: { source: 'orca:x', slot: 1 } } as never;
     now = 10;
     g.onConsolidated(0, c, { recvTs: 2, decodedTs: 3, reconciledTs: 7 });

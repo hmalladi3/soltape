@@ -72,14 +72,15 @@ export class JupiterAdapter {
   }
 
   // @spec ING-JUP-001
-  async start(): Promise<void> {
+  start(): Promise<void> {
     if (!this.d.apiKey) {
       this.state = 'disabled';
       this.d.sink.onSourceState('jupiter', 'disabled');
-      return;
+      return Promise.resolve();
     }
     this.d.sink.onSourceState('jupiter', 'connecting');
     this.schedule(0);
+    return Promise.resolve();
   }
 
   async stop(): Promise<void> {
@@ -115,7 +116,8 @@ export class JupiterAdapter {
         dispatcher: this.agent,
       } as unknown as RequestInit);
     } catch (err) {
-      return this.failed(err instanceof DOMException && err.name === 'TimeoutError' ? 'timeout' : 'network');
+      this.failed(err instanceof DOMException && err.name === 'TimeoutError' ? 'timeout' : 'network');
+      return;
     }
     const recvTs = this.d.clock.mono();
     const recvWall = this.d.clock.wall();
@@ -125,20 +127,26 @@ export class JupiterAdapter {
       await res.body?.cancel();
       const ra = retryAfterMs(res.headers.get('retry-after'), recvWall);
       this.interval = ra !== null ? Math.max(this.o.intervalMs, ra) : Math.min(this.o.maxIntervalMs, this.interval * 2);
-      return this.failed('rate_limited');
+      this.failed('rate_limited');
+      return;
     }
     if (!res.ok) {
       await res.body?.cancel();
-      return this.failed(`http_${res.status}`);
+      this.failed(`http_${res.status}`);
+      return;
     }
     let body: unknown;
     try {
       body = await res.json();
     } catch {
-      return this.failed('invalid_json');
+      this.failed('invalid_json');
+      return;
     }
     const parsed = bodySchema.safeParse(body);
-    if (!parsed.success || Array.isArray(body)) return this.failed('invalid_body');
+    if (!parsed.success || Array.isArray(body)) {
+      this.failed('invalid_body');
+      return;
+    }
     this.succeeded(parsed.data, recvTs, recvWall);
   }
 

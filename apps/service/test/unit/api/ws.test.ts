@@ -56,7 +56,13 @@ describe('WebSocket protocol', () => {
     c.send({ op: 'subscribe', mints: ['SOL', 'nope', 'DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263'] });
     expect((await c.next((m) => m.type === 'subscribed')).mints).toEqual([SOL_MINT]);
     const err = await c.next((m) => m.type === 'error');
-    expect(err).toMatchObject({ code: 'INVALID_MINTS', rejected: [{ mint: 'nope', reason: 'INVALID_MINT' }, { mint: 'DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263', reason: 'MINT_NOT_TRACKED' }] });
+    expect(err).toMatchObject({
+      code: 'INVALID_MINTS',
+      rejected: [
+        { mint: 'nope', reason: 'INVALID_MINT' },
+        { mint: 'DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263', reason: 'MINT_NOT_TRACKED' },
+      ],
+    });
     await sleep(20);
     expect(c.msgs.filter((m) => m.type === 'error')).toHaveLength(1);
   });

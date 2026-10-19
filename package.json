@@ -21,12 +21,22 @@
     "fixtures:check": "pnpm build && node apps/replay/dist/main.js check",
     "replay": "pnpm build && node apps/replay/dist/main.js serve",
     "bench": "pnpm build && node bench/dist/run.js",
-    "bench:decoder": "pnpm build && node bench/dist/decoder.js"
+    "bench:decoder": "pnpm build && node bench/dist/decoder.js",
+    "lint": "eslint . && prettier --check .",
+    "format": "prettier --write .",
+    "smoke": "./scripts/compose-smoke.sh"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/node": "^24.19.2",
+    "eslint": "^10.13.0",
+    "eslint-config-prettier": "^10.1.8",
     "fast-check": "^4.10.2",
-    "typescript": "^7.0.2",
-    "vitest": "^5.0.5"
+    "globals": "^17.13.0",
+    "prettier": "^3.9.10",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.72.0",
+    "vitest": "^5.0.5",
+    "yaml": "^2.9.1"
   }
 }

@@ -151,7 +151,16 @@ describe('hot path', () => {
     rpc.pushSlot(5001);
     await waitFor(() => h.sink.of('slot').length > 0 && h.sink.of('pool').some((e) => e.kind === 'notification'));
     const out = new Float64Array(8);
-    decoder.decodeNotification(Buffer.from(JSON.stringify({ jsonrpc: '2.0', method: 'accountNotification', params: { result: { context: { slot: 1 }, value: { data: [rpc.accounts.get(ADDR.ORCA_SOL_USDC)!.data.toString('base64'), 'base64'] } }, subscription: 1 } })), out);
+    decoder.decodeNotification(
+      Buffer.from(
+        JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'accountNotification',
+          params: { result: { context: { slot: 1 }, value: { data: [rpc.accounts.get(ADDR.ORCA_SOL_USDC)!.data.toString('base64'), 'base64'] } }, subscription: 1 },
+        }),
+      ),
+      out,
+    );
     const u = h.sink.of('pool').find((e) => e.kind === 'notification')!;
     expect(u).toMatchObject({ pool: poolIdx(h, ADDR.ORCA_SOL_USDC), slot: 5000, sqrt: out[3], liq: out[4], tick: out[5] });
     expect(Number.isInteger(u.pool)).toBe(true);
@@ -194,7 +203,9 @@ describe('hot path', () => {
     await live(h);
     const before = h.sink.of('pool').length;
     const data = rpc.accounts.get(ADDR.ORCA_SOL_USDC)!.data.toString('base64');
-    rpc.sendRaw(JSON.stringify({ jsonrpc: '2.0', method: 'accountNotification', params: { result: { context: { slot: 9 }, value: { data: [data, 'base64'] } }, subscription: 999_999 } }));
+    rpc.sendRaw(
+      JSON.stringify({ jsonrpc: '2.0', method: 'accountNotification', params: { result: { context: { slot: 9 }, value: { data: [data, 'base64'] } }, subscription: 999_999 } }),
+    );
     await waitFor(() => h.adapter.stats.unknownSubscription === 1);
     expect(h.sink.of('pool').length).toBe(before);
   });
@@ -205,7 +216,9 @@ describe('hot path', () => {
     await h.adapter.start();
     await live(h);
     const sub = rpc.subscriptionId(ADDR.ORCA_SOL_USDC)!;
-    rpc.sendRaw(JSON.stringify({ jsonrpc: '2.0', method: 'accountNotification', params: { result: { context: { slot: 9 }, value: { data: ['***', 'base64'] } }, subscription: sub } }));
+    rpc.sendRaw(
+      JSON.stringify({ jsonrpc: '2.0', method: 'accountNotification', params: { result: { context: { slot: 9 }, value: { data: ['***', 'base64'] } }, subscription: sub } }),
+    );
     rpc.sendRaw('{not json');
     await waitFor(() => h.adapter.stats.decodeErrors.get(Status.MALFORMED_JSON) === 1);
     expect(h.adapter.stats.decodeErrors.get(Status.BAD_ENCODING)).toBe(1);

@@ -44,7 +44,8 @@ function priced() {
   const clock = new FakeClock();
   const rec = new Reconciler({ model, clock, thresholds: DEFAULT_THRESHOLDS });
   let slot = 100;
-  const pool = (i: number, price: number) => rec.onPoolUpdate(i, sqrtForPoolPrice(model.pools[i]!, price), 1e12, 0, ++slot, clock.mono(), clock.wall(), clock.mono(), 'notification');
+  const pool = (i: number, price: number) =>
+    rec.onPoolUpdate(i, sqrtForPoolPrice(model.pools[i]!, price), 1e12, 0, ++slot, clock.mono(), clock.wall(), clock.mono(), 'notification');
   rec.onSourceState('orca', 'live');
   rec.onSourceState('raydium', 'live');
   rec.onSourceState('jupiter', 'disabled');
@@ -191,7 +192,11 @@ describe('Postgres history: schema and partitions', () => {
     await waitFor(() => h.state() === 'up', 10_000);
     const parts = (await admin.query(`SELECT c.relname FROM pg_partitioned_table p JOIN pg_class c ON c.oid = p.partrelid ORDER BY 1`)).rows.map((r) => r.relname);
     expect(parts).toEqual(['consolidated', 'observations']);
-    const types = (await admin.query(`SELECT table_name, column_name, data_type FROM information_schema.columns WHERE table_name IN ('observations','consolidated') AND column_name IN ('price','size','spread_bps')`)).rows;
+    const types = (
+      await admin.query(
+        `SELECT table_name, column_name, data_type FROM information_schema.columns WHERE table_name IN ('observations','consolidated') AND column_name IN ('price','size','spread_bps')`,
+      )
+    ).rows;
     expect(types.every((t) => t.data_type === 'double precision')).toBe(true);
     const idx = (await admin.query(`SELECT tablename, indexdef FROM pg_indexes WHERE tablename LIKE 'consolidated_2%'`)).rows;
     expect(idx.length).toBeGreaterThan(0);
@@ -216,12 +221,18 @@ describe('Postgres history: schema and partitions', () => {
     const today = startOfDayUtc(clock.wall());
     const name = (t: number) => new Date(t).toISOString().slice(0, 10).replaceAll('-', '');
     const old = today - 9 * DAY_MS;
-    await admin.query(`CREATE TABLE consolidated_${name(old)} PARTITION OF consolidated FOR VALUES FROM ('${new Date(old).toISOString()}') TO ('${new Date(old + DAY_MS).toISOString()}')`);
+    await admin.query(
+      `CREATE TABLE consolidated_${name(old)} PARTITION OF consolidated FOR VALUES FROM ('${new Date(old).toISOString()}') TO ('${new Date(old + DAY_MS).toISOString()}')`,
+    );
     await admin.query(`INSERT INTO consolidated_default VALUES ('1999-01-01', 'm', 1, 0, 1, false, false, null, '{}')`);
     const r = await h.maintain();
     expect(r.dropped).toEqual([`consolidated_${name(old)}`]);
     expect(r.defaultRows.consolidated).toBe(1);
-    const parts = (await admin.query(`SELECT c.relname FROM pg_inherits i JOIN pg_class c ON c.oid = i.inhrelid JOIN pg_class p ON p.oid = i.inhparent WHERE p.relname = 'consolidated' ORDER BY 1`)).rows.map((x) => x.relname);
+    const parts = (
+      await admin.query(
+        `SELECT c.relname FROM pg_inherits i JOIN pg_class c ON c.oid = i.inhrelid JOIN pg_class p ON p.oid = i.inhparent WHERE p.relname = 'consolidated' ORDER BY 1`,
+      )
+    ).rows.map((x) => x.relname);
     expect(parts).toEqual(['consolidated_default', ...[0, 1, 2].map((d) => `consolidated_${name(today + d * DAY_MS)}`)].sort());
   });
 
@@ -231,7 +242,10 @@ describe('Postgres history: schema and partitions', () => {
     h.start();
     await waitFor(() => h.state() === 'up', 10_000);
     const day3 = startOfDayUtc(clock.wall()) + 3 * DAY_MS;
-    await admin.query(`INSERT INTO consolidated VALUES ($1, 'm', 1, 0, 1, false, false, null, '{}'), ($2, 'm', 2, 0, 1, false, false, null, '{}')`, [new Date(day3 + 1000), new Date(day3 + 2000)]);
+    await admin.query(`INSERT INTO consolidated VALUES ($1, 'm', 1, 0, 1, false, false, null, '{}'), ($2, 'm', 2, 0, 1, false, false, null, '{}')`, [
+      new Date(day3 + 1000),
+      new Date(day3 + 2000),
+    ]);
     expect((await admin.query('SELECT count(*)::int n FROM consolidated_default')).rows[0].n).toBe(2);
     clock.advance(DAY_MS);
     const r = await h.maintain();
@@ -248,7 +262,14 @@ describe('Postgres history: schema and partitions', () => {
     const c1 = await admin.connect();
     const c2 = await admin.connect();
     try {
-      await admin.query('DROP TABLE IF EXISTS ' + (await admin.query(`SELECT string_agg(c.relname, ',') s FROM pg_inherits i JOIN pg_class c ON c.oid=i.inhrelid JOIN pg_class p ON p.oid=i.inhparent WHERE p.relname='observations' AND c.relname <> 'observations_default'`)).rows[0].s);
+      await admin.query(
+        'DROP TABLE IF EXISTS ' +
+          (
+            await admin.query(
+              `SELECT string_agg(c.relname, ',') s FROM pg_inherits i JOIN pg_class c ON c.oid=i.inhrelid JOIN pg_class p ON p.oid=i.inhparent WHERE p.relname='observations' AND c.relname <> 'observations_default'`,
+            )
+          ).rows[0].s,
+      );
       const [a, b] = await Promise.all([maintainPartitions(c1, Date.now(), 7), maintainPartitions(c2, Date.now(), 7)]);
       expect(a.created.length + b.created.length).toBe(3);
     } finally {
@@ -309,7 +330,14 @@ describe('Postgres history: writer and reader', () => {
     h.start();
     await waitFor(() => h.state() === 'up', 10_000);
     const t0 = Math.floor(clock.wall() / 60_000) * 60_000 - 10 * 60_000;
-    for (const [dt, price] of [[1000, 10], [2000, 12], [3000, 9], [4000, 11], [3 * 60_000 + 5000, 20]] as const) h.onConsolidated(0, consolidatedAt(t0 + dt, price));
+    for (const [dt, price] of [
+      [1000, 10],
+      [2000, 12],
+      [3000, 9],
+      [4000, 11],
+      [3 * 60_000 + 5000, 20],
+    ] as const)
+      h.onConsolidated(0, consolidatedAt(t0 + dt, price));
     await waitFor(async () => (await admin.query('SELECT count(*)::int n FROM consolidated')).rows[0].n === 5, 5000);
     const b = await h.query('So11111111111111111111111111111111111111112', t0, t0 + 10 * 60_000, '1m');
     expect(b).toEqual([

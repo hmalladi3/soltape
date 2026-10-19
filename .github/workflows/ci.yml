@@ -1,0 +1,162 @@
+# @spec DLV-CI-001, DLV-CI-002, DLV-CI-003, DLV-CI-004, DLV-CI-005, DLV-CI-006, DLV-CI-007
+name: ci
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '24'
+  RUST_VERSION: '1.99.0'
+
+jobs:
+  rust:
+    name: rust (fmt, clippy, tests, addon)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: packages/decoder/native
+      - run: cargo fmt --check
+        working-directory: packages/decoder/native
+      - run: cargo clippy --all-targets -- -D warnings
+        working-directory: packages/decoder/native
+      - run: cargo test --no-fail-fast
+        working-directory: packages/decoder/native
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @soltape/decoder build:native
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-addon
+          path: packages/decoder/native/*.node
+
+  ts:
+    name: ts (lint, typecheck, fixtures, unit tests)
+    needs: rust
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@v4
+        with:
+          name: native-addon
+          path: packages/decoder/native
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm build
+      - run: node apps/replay/dist/main.js check
+      - run: pnpm vitest run --project unit
+      - run: node bin/coherence-check.mjs
+
+  fuzz:
+    name: fuzz (60 s per target)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: packages/decoder/native/fuzz
+      - run: cargo install cargo-fuzz --locked
+      - name: run fuzz targets
+        working-directory: packages/decoder/native/fuzz
+        run: |
+          for t in decode_notification decode_account; do
+            cargo +nightly fuzz run "$t" "corpus/$t" -- -max_total_time=60
+          done
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-reproducers
+          path: packages/decoder/native/fuzz/artifacts
+
+  parity:
+    name: decoder parity (native vs reference)
+    needs: rust
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@v4
+        with:
+          name: native-addon
+          path: packages/decoder/native
+      - run: pnpm vitest run --project unit packages/decoder/test/parity.test.ts packages/decoder/test/parity-edges.test.ts
+
+  integration:
+    name: integration (Postgres + Redis via testcontainers)
+    needs: rust
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@v4
+        with:
+          name: native-addon
+          path: packages/decoder/native
+      - run: pnpm vitest run --project integration
+
+  compose-smoke:
+    name: compose smoke (README offline command)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: build image from source and run the replay profile
+        env:
+          SMOKE_BUILD: '1'
+        run: ./scripts/compose-smoke.sh
+
+  bench-smoke:
+    name: bench (reduced matrix, job summary)
+    needs: rust
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@v4
+        with:
+          name: native-addon
+          path: packages/decoder/native
+      - run: pnpm build
+      - run: node bench/dist/decoder.js --summary
+      - run: node bench/dist/run.js --quick --summary --out bench/results
+      - run: node bench/dist/regress.js "$(ls bench/results/*.json | head -1)" bench/baseline.json
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bench-results
+          path: bench/results

@@ -9,9 +9,7 @@ import type { RedisLatestStore } from './redis-latest.js';
  * Neither sink's state affects the live feed (HLD Goal 3).
  */
 export class Persistence implements PersistenceLifecycle, DependencyStatus, ConsolidatedListener {
-  constructor(
-    private readonly d: { redisStore: RedisLatestStore; history: PgHistory; restoreInto: (entries: RestoredMarket[]) => void },
-  ) {}
+  constructor(private readonly d: { redisStore: RedisLatestStore; history: PgHistory; restoreInto: (entries: RestoredMarket[]) => void }) {}
 
   startBackground(): void {
     this.d.redisStore.start();
@@ -24,10 +22,7 @@ export class Persistence implements PersistenceLifecycle, DependencyStatus, Cons
 
   async flush(deadlineMs: number): Promise<{ unflushed: number }> {
     let t: NodeJS.Timeout | undefined;
-    await Promise.race([
-      Promise.all([this.d.history.drain(), this.d.redisStore.flush()]),
-      new Promise<void>((r) => (t = setTimeout(r, deadlineMs))),
-    ]);
+    await Promise.race([Promise.all([this.d.history.drain(), this.d.redisStore.flush()]), new Promise<void>((r) => (t = setTimeout(r, deadlineMs)))]);
     clearTimeout(t);
     return { unflushed: this.d.history.pending() };
   }
@@ -44,10 +39,9 @@ export class Persistence implements PersistenceLifecycle, DependencyStatus, Cons
     return this.d.history.state();
   }
 
-  onConsolidated(market: number, c: Consolidated, stamps: EmitStamps): void {
+  onConsolidated(market: number, c: Consolidated, _stamps: EmitStamps): void {
     this.d.redisStore.onConsolidated(market);
     this.d.history.onConsolidated(market, c);
-    void stamps;
   }
 
   onUnavailable(market: number): void {

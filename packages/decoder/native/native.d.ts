@@ -7,25 +7,25 @@
  * flavor napi-rs can build is listed, because `NAPI_RS_NATIVE_LIBRARY_PATH`
  * can point the loader at a WASI artifact this package does not build itself.
  */
-export declare const __napiBindingTarget: 'native' | 'wasm32-wasi' | 'wasm32-wasip1'
+export declare const __napiBindingTarget: 'native' | 'wasm32-wasi' | 'wasm32-wasip1';
 
-export declare function decodeAccount(data: Uint8Array, venue: string): DecodeAccountResult
+export declare function decodeAccount(data: Uint8Array, venue: string): DecodeAccountResult;
 
 export interface DecodeAccountResult {
-  status: number
-  info?: PoolInfoJs
+  status: number;
+  info?: PoolInfoJs;
 }
 
-export declare function decodeNotification(frame: Uint8Array, out: Float64Array): number
+export declare function decodeNotification(frame: Uint8Array, out: Float64Array): number;
 
 export interface PoolInfoJs {
-  layout: number
-  mintA: string
-  mintB: string
-  decimalsA?: number
-  decimalsB?: number
-  sqrtRatio: number
-  liquidity: number
-  tick: number
-  sizeUnexpected: boolean
+  layout: number;
+  mintA: string;
+  mintB: string;
+  decimalsA?: number;
+  decimalsB?: number;
+  sqrtRatio: number;
+  liquidity: number;
+  tick: number;
+  sizeUnexpected: boolean;
 }

@@ -1,6 +1,7 @@
 [workspace]
 resolver = "3"
 members = ["core", "napi"]
+exclude = ["fuzz"]
 
 [workspace.package]
 edition = "2024"

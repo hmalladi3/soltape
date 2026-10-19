@@ -178,10 +178,7 @@ export class ServiceRuntime {
   async fatal(err: unknown): Promise<void> {
     this.log.fatal({ err }, 'uncaught error; exiting');
     let cap: NodeJS.Timeout | undefined;
-    await Promise.race([
-      (this.shuttingDown ??= this.stopEverything()).catch(() => undefined),
-      new Promise<void>((r) => (cap = setTimeout(r, this.o.fatalShutdownCapMs))),
-    ]);
+    await Promise.race([(this.shuttingDown ??= this.stopEverything()).catch(() => undefined), new Promise<void>((r) => (cap = setTimeout(r, this.o.fatalShutdownCapMs)))]);
     clearTimeout(cap);
     this.exit(1);
   }

@@ -170,8 +170,7 @@ function decodeBase64Strict(s: string): Uint8Array | null {
  * expects an object or the `data` array. See native/core/src/frame.rs.
  */
 function strictRejects(top: Json): boolean {
-  const unrepresentableScalar = (v: Json | undefined) =>
-    (typeof v === 'string' && !v.isWellFormed()) || (typeof v === 'number' && !Number.isFinite(v));
+  const unrepresentableScalar = (v: Json | undefined) => (typeof v === 'string' && !v.isWellFormed()) || (typeof v === 'number' && !Number.isFinite(v));
   const badKeys = (o: Obj) => Object.keys(o).some((k) => !k.isWellFormed());
   const container = (v: Json | undefined, children?: (o: Obj) => boolean): boolean => {
     if (unrepresentableScalar(v)) return true;
@@ -179,9 +178,7 @@ function strictRejects(top: Json): boolean {
     return badKeys(v) || (children?.(v) ?? false);
   };
   return container(top, (t) =>
-    container(get(t, 'params'), (p) =>
-      container(get(p, 'result'), (r) => container(get(r, 'context')) || container(get(r, 'value'), (v) => container(get(v, 'data')))),
-    ),
+    container(get(t, 'params'), (p) => container(get(p, 'result'), (r) => container(get(r, 'context')) || container(get(r, 'value'), (v) => container(get(v, 'data'))))),
   );
 }
 

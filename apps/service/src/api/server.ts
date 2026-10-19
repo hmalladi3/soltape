@@ -77,10 +77,11 @@ export class ApiServer implements ServerLifecycle {
     });
   }
 
-  async stopAccepting(): Promise<void> {
+  stopAccepting(): Promise<void> {
     this.accepting = false;
     this.http.close();
     this.http.closeIdleConnections();
+    return Promise.resolve();
   }
 
   async closeClients(code: number): Promise<void> {
@@ -144,11 +145,27 @@ export class ApiServer implements ServerLifecycle {
         this.log.warn({ err }, 'history query failed');
         throw new ApiError(503, 'HISTORY_UNAVAILABLE', 'History query failed or timed out');
       }
-      res.json({ mint: market.mint, symbol: market.symbol, from: new Date(q.fromMs).toISOString(), to: new Date(q.toMs).toISOString(), bucket: q.bucket, clamped: q.clamped, buckets });
+      res.json({
+        mint: market.mint,
+        symbol: market.symbol,
+        from: new Date(q.fromMs).toISOString(),
+        to: new Date(q.toMs).toISOString(),
+        bucket: q.bucket,
+        clamped: q.clamped,
+        buckets,
+      });
     });
 
     app.get('/health', (_req, res) => {
-      const h = computeHealth({ model: d.model, reconciler: d.reconciler, phase: d.phase, clock: d.clock, startedAt: this.startedAt, decoderImpl: d.decoderImpl, dependencies: d.dependencies });
+      const h = computeHealth({
+        model: d.model,
+        reconciler: d.reconciler,
+        phase: d.phase,
+        clock: d.clock,
+        startedAt: this.startedAt,
+        decoderImpl: d.decoderImpl,
+        dependencies: d.dependencies,
+      });
       res.status(h.http).json(h.body);
     });
 

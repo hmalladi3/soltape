@@ -157,8 +157,8 @@ export class Reconciler implements SourceSink {
 
     const now = clock.mono();
     this.src = SOURCES.map(() => ({
-      adapter: 'connecting' as AdapterState,
-      judged: 'connecting' as SourceState,
+      adapter: 'connecting',
+      judged: 'connecting',
       liveSince: now,
       lastEventTs: Number.NaN,
       lastSlot: Number.NaN,
@@ -230,17 +230,7 @@ export class Reconciler implements SourceSink {
   // Source sink (ING-SRC-001)
 
   // @spec REC-POOL-001, REC-POOL-002, REC-NORM-003
-  onPoolUpdate(
-    pool: number,
-    sqrtRatio: number,
-    liquidity: number,
-    tick: number,
-    slot: number,
-    recvTs: number,
-    recvWall: number,
-    decodedTs: number,
-    kind: PoolUpdateKind,
-  ): void {
+  onPoolUpdate(pool: number, sqrtRatio: number, liquidity: number, tick: number, slot: number, recvTs: number, recvWall: number, decodedTs: number, kind: PoolUpdateKind): void {
     if (this.frozen) return;
     if (this.pSeen[pool] === 1 && slot < this.pSlot[pool]!) {
       const identical = kind === 'revalidation' && sqrtRatio === this.pSqrt[pool] && liquidity === this.pLiq[pool] && tick === this.pTick[pool];
@@ -480,7 +470,7 @@ export class Reconciler implements SourceSink {
       this.oWall[g] = this.qWall[market]!;
       const sr = this.sourceReason(si, now);
       if (sr !== R.OK) return this.setReason(g, sr, 0);
-      if (now - this.oRecv[g]! > this.t.obsMaxAgeMs) return this.setReason(g, R.EXPIRED, 0);
+      if (now - this.oRecv[g] > this.t.obsMaxAgeMs) return this.setReason(g, R.EXPIRED, 0);
       if (!(Number.isFinite(price) && price > 0)) return this.setReason(g, R.INVALID, 0);
       return this.setReason(g, R.OK, 0);
     }
@@ -551,14 +541,7 @@ export class Reconciler implements SourceSink {
   // Consolidation (REC-CONS-*)
 
   // @spec REC-CONS-001, REC-CONS-002, REC-CONS-003, REC-CONS-004, REC-CONS-006, REC-CONS-007, REC-CONS-008
-  private evaluate(
-    market: number,
-    triggerSource: string,
-    triggerSlot: number | null,
-    recvTs: number | null,
-    decodedTs: number | null,
-    isData: boolean,
-  ): void {
+  private evaluate(market: number, triggerSource: string, triggerSlot: number | null, recvTs: number | null, decodedTs: number | null, isData: boolean): void {
     if (this.frozen) return;
     const now = this.clock.mono();
     const m = this.model.markets[market]!;
@@ -616,7 +599,8 @@ export class Reconciler implements SourceSink {
     const degraded = eligible < enabled;
 
     // Change detection without allocation.
-    let changed = this.mEmitted[market] !== 1 || price !== this.mLastPrice[market] || degraded !== (this.mLastDegraded[market] === 1) || disagreement !== (this.mLastDisagree[market] === 1);
+    let changed =
+      this.mEmitted[market] !== 1 || price !== this.mLastPrice[market] || degraded !== (this.mLastDegraded[market] === 1) || disagreement !== (this.mLastDisagree[market] === 1);
     for (let v = 0; v < n && !changed; v++) {
       const g = base + v;
       if (this.sigReason[g] !== this.oReason[g]! * 16 + this.oLeg[g]!) changed = true;

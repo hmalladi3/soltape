@@ -89,7 +89,8 @@ export class FakeRpc {
 
   pushSlot(slot = ++this.slot): void {
     for (const [id, s] of this.subs) {
-      if (s.kind === 'slot') s.ws.send(JSON.stringify({ jsonrpc: '2.0', method: 'slotNotification', params: { result: { parent: slot - 1, root: slot - 32, slot }, subscription: id } }));
+      if (s.kind === 'slot')
+        s.ws.send(JSON.stringify({ jsonrpc: '2.0', method: 'slotNotification', params: { result: { parent: slot - 1, root: slot - 32, slot }, subscription: id } }));
     }
   }
 
@@ -170,7 +171,7 @@ export async function waitFor<T>(fn: () => T | Promise<T>, timeoutMs = 2000, wha
   const end = Date.now() + timeoutMs;
   for (;;) {
     const v = await fn();
-    if (v) return v as NonNullable<T>;
+    if (v) return v;
     if (Date.now() > end) throw new Error(`timed out waiting for ${what}`);
     await new Promise((r) => setTimeout(r, 5));
   }

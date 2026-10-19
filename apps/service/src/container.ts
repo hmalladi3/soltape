@@ -97,7 +97,9 @@ export function createAppContainer(config: Config, overrides: Overrides = {}): A
       ...(model.pools.some((p) => p.venue === 'raydium') ? [raydiumAdapter] : []),
       jupiterAdapter,
     ]),
-    redisStore: s(({ config, model, reconciler, clock, logger, telemetry }) => new RedisLatestStore({ url: config.env.redisUrl, model, source: reconciler, clock, logger, telemetry })),
+    redisStore: s(
+      ({ config, model, reconciler, clock, logger, telemetry }) => new RedisLatestStore({ url: config.env.redisUrl, model, source: reconciler, clock, logger, telemetry }),
+    ),
     pgHistory: s(
       ({ config, model, clock, logger, telemetry }) =>
         new PgHistory({ url: config.env.databaseUrl, model, clock, logger, telemetry, options: { retentionDays: config.env.historyRetentionDays } }),

@@ -1,3 +1,4 @@
+// @spec DLV-QA-003
 //! napi-rs boundary. Every call is wrapped in `catch_unwind`; panics become `PANIC`.
 use napi::bindgen_prelude::Float64Array;
 use napi_derive::napi;

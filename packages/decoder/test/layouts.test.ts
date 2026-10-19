@@ -7,7 +7,7 @@ import { accountFrame, bytes, implementations, newOut, raydiumPools, whirlpools 
 
 const require = createRequire(import.meta.url);
 const raydium = require('@raydium-io/raydium-sdk-v2') as {
-  PoolInfoLayout: { decode(b: Buffer): Record<string, { toString(): string; toBase58?(): string } & unknown> };
+  PoolInfoLayout: { decode(b: Buffer): unknown };
 };
 
 interface RaydiumPool {
@@ -46,7 +46,7 @@ describe.each(implementations)('layouts (%s)', (_name, dec) => {
 
   // @spec DEC-LAY-003, DEC-LAY-004
   it.each(raydiumPools.map((p) => [p.address, p] as const))('matches the Raydium SDK for CLMM pool %s', (_a, p) => {
-    const sdk = raydium.PoolInfoLayout.decode(Buffer.from(p.data, 'base64')) as unknown as RaydiumPool;
+    const sdk = raydium.PoolInfoLayout.decode(Buffer.from(p.data, 'base64')) as RaydiumPool;
     const out = newOut();
     expect(dec.decodeNotification(bytes(accountFrame(p.data)), out)).toBe(Status.ACCOUNT);
     expect(out[Out.SQRT]).toBe(Number(BigInt(sdk.sqrtPriceX64.toString())) * 2 ** -64);
@@ -74,7 +74,7 @@ describe.each(implementations)('layouts (%s)', (_name, dec) => {
   // @spec DEC-LAY-005
   it.each(raydiumPools.map((p) => [p.address, p] as const))('decodeAccount returns full pool info for CLMM pool %s', (_a, p) => {
     const raw = Buffer.from(p.data, 'base64');
-    const sdk = raydium.PoolInfoLayout.decode(raw) as unknown as RaydiumPool;
+    const sdk = raydium.PoolInfoLayout.decode(raw) as RaydiumPool;
     const r = dec.decodeAccount(raw, 'raydium');
     expect(r.status).toBe(Status.ACCOUNT);
     expect(r.info).toEqual({

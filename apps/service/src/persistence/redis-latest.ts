@@ -41,7 +41,15 @@ export class RedisLatestStore implements ConsolidatedListener, ObservationListen
   private readonly log: Logger;
 
   constructor(
-    private readonly d: { url: string; model: MarketModel; source: LatestStateSource; clock: Clock; logger: Logger; telemetry?: TelemetryHooks; options?: Partial<RedisLatestOptions> },
+    private readonly d: {
+      url: string;
+      model: MarketModel;
+      source: LatestStateSource;
+      clock: Clock;
+      logger: Logger;
+      telemetry?: TelemetryHooks;
+      options?: Partial<RedisLatestOptions>;
+    },
   ) {
     this.o = { ...DEFAULT_REDIS_OPTIONS, ...d.options };
     this.log = d.logger.child({ component: 'persistence', sink: 'redis' });
@@ -209,7 +217,9 @@ function parseJson(s: string): unknown {
 
 function isConsolidated(v: unknown, mint: string): v is Consolidated {
   const c = v as Partial<Consolidated> | undefined;
-  return !!c && c.mint === mint && typeof c.price === 'number' && Array.isArray(c.sources) && Array.isArray(c.excluded) && typeof c.updatedAt === 'string' && typeof c.seq === 'number';
+  return (
+    !!c && c.mint === mint && typeof c.price === 'number' && Array.isArray(c.sources) && Array.isArray(c.excluded) && typeof c.updatedAt === 'string' && typeof c.seq === 'number'
+  );
 }
 
 function isObservation(v: unknown): v is ObservationView {

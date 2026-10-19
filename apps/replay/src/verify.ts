@@ -34,7 +34,9 @@ export function verifyFrame(body: string, venue: 'orca' | 'raydium', data: Buffe
 export async function loadSdkDecode(): Promise<SdkDecode> {
   const { getWhirlpoolDecoder } = await import('@orca-so/whirlpools-client');
   const { createRequire } = await import('node:module');
-  const ray = createRequire(import.meta.url)('@raydium-io/raydium-sdk-v2') as { PoolInfoLayout: { decode(b: Buffer): { sqrtPriceX64: { toString(): string }; liquidity: { toString(): string }; tickCurrent: number } } };
+  const ray = createRequire(import.meta.url)('@raydium-io/raydium-sdk-v2') as {
+    PoolInfoLayout: { decode(b: Buffer): { sqrtPriceX64: { toString(): string }; liquidity: { toString(): string }; tickCurrent: number } };
+  };
   const whirl = getWhirlpoolDecoder();
   return (venue, data) => {
     if (venue === 'orca') {

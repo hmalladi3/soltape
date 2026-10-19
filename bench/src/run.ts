@@ -45,10 +45,14 @@ export async function runBench(o: BenchOptions): Promise<{ cells: CellResult[]; 
   const kill = () => children.forEach((c) => c.kill('SIGTERM'));
   process.once('exit', kill);
 
-  const replay = spawn(process.execPath, [join(root, 'apps/replay/dist/main.js'), 'serve', '--mode', 'rate', '--port', String(o.replayPort), '--bench-markets', String(o.benchMarkets), '--fixture', fixturePath], {
-    stdio: ['ignore', 'ignore', 'inherit'],
-    env: { ...process.env, LOG_LEVEL: 'warn' },
-  });
+  const replay = spawn(
+    process.execPath,
+    [join(root, 'apps/replay/dist/main.js'), 'serve', '--mode', 'rate', '--port', String(o.replayPort), '--bench-markets', String(o.benchMarkets), '--fixture', fixturePath],
+    {
+      stdio: ['ignore', 'ignore', 'inherit'],
+      env: { ...process.env, LOG_LEVEL: 'warn' },
+    },
+  );
   children.push(replay);
   await waitHttp(`${replayUrl}/control/status`);
   const service = spawn(process.execPath, [join(root, 'apps/service/dist/main.js')], {
@@ -99,7 +103,10 @@ export async function runBench(o: BenchOptions): Promise<{ cells: CellResult[]; 
   async function runCell(rate: number, subscribers: number): Promise<CellResult> {
     const perClient = splitEvenly(subscribers, Math.min(o.clients, subscribers));
     const clients = perClient.map((n) =>
-      fork(join(root, 'bench/dist/client.js'), [`ws://127.0.0.1:${o.servicePort}/ws`, String(n), '4'], { serialization: 'advanced', stdio: ['ignore', 'ignore', 'inherit', 'ipc'] }),
+      fork(join(root, 'bench/dist/client.js'), [`ws://127.0.0.1:${o.servicePort}/ws`, String(n), '4'], {
+        serialization: 'advanced',
+        stdio: ['ignore', 'ignore', 'inherit', 'ipc'],
+      }),
     );
     children.push(...clients);
     await Promise.all(clients.map((c) => once(c, 'ready')));
@@ -108,7 +115,10 @@ export async function runBench(o: BenchOptions): Promise<{ cells: CellResult[]; 
     for (const c of clients) c.send({ type: 'record' });
     const start = await fetch(`${replayUrl}/control`, { method: 'POST', body: JSON.stringify({ op: 'rate', rate, durationMs: o.durationS * 1000, warmupMs: o.warmupS * 1000 }) });
     if (start.status !== 202) throw new Error(`replay refused the run: ${await start.text()}`);
-    await waitFor(async () => !((await (await fetch(`${replayUrl}/control/status`)).json()) as { rate: { running: boolean } }).rate.running, (o.warmupS + o.durationS) * 1000 + 30_000);
+    await waitFor(
+      async () => !((await (await fetch(`${replayUrl}/control/status`)).json()) as { rate: { running: boolean } }).rate.running,
+      (o.warmupS + o.durationS) * 1000 + 30_000,
+    );
     await sleep(500);
     const results = await Promise.all(
       clients.map((c) => {
@@ -121,7 +131,10 @@ export async function runBench(o: BenchOptions): Promise<{ cells: CellResult[]; 
     const stats = (await (await fetch(`${serviceUrl}/stats`)).json()) as { latencyUs: { p50: number; p99: number; p999: number } };
     const logRes = await fetch(`${replayUrl}/control/sendlog`);
     const log = parseSendLog(await logRes.arrayBuffer(), logRes.headers);
-    const e2e = joinLatencies(log, results.flatMap((r) => r.sockets));
+    const e2e = joinLatencies(
+      log,
+      results.flatMap((r) => r.sockets),
+    );
     return {
       rate,
       subscribers,

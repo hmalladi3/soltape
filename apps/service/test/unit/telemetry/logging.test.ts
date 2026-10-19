@@ -71,7 +71,10 @@ describe('logging', () => {
     // @spec OBS-LOG-004
     it('includes component on every line of a full service run', async () => {
       const { lines, stream } = capture();
-      const cfg = loadConfig({ RPC_HTTP_URL: rpc.httpUrl, RPC_WS_URL: rpc.wsUrl, PORT: '0', LOG_LEVEL: 'debug', REDIS_URL: 'redis://127.0.0.1:1', DATABASE_URL: 'postgres://u:p@127.0.0.1:1/x' }, testMarkets());
+      const cfg = loadConfig(
+        { RPC_HTTP_URL: rpc.httpUrl, RPC_WS_URL: rpc.wsUrl, PORT: '0', LOG_LEVEL: 'debug', REDIS_URL: 'redis://127.0.0.1:1', DATABASE_URL: 'postgres://u:p@127.0.0.1:1/x' },
+        testMarkets(),
+      );
       if (!cfg.ok) throw new Error(cfg.errors.join());
       const c = createAppContainer(cfg.value, { logger: asValue(createLogger('debug', stream)), exit: asValue(() => {}) });
       await c.cradle.runtime.start();

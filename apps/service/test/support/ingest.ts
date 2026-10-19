@@ -77,7 +77,16 @@ export function recordingLogger(logs: Harness['logs']): Logger {
 
 export function makeAdapter(
   rpc: FakeRpc,
-  opts: { venue?: 'orca' | 'raydium'; options?: Partial<RpcAdapterOptions>; markets?: MarketsFile; clock?: Clock; decoder?: FrameDecoder; random?: () => number; sink?: RecordingSink; model?: MarketModel } = {},
+  opts: {
+    venue?: 'orca' | 'raydium';
+    options?: Partial<RpcAdapterOptions>;
+    markets?: MarketsFile;
+    clock?: Clock;
+    decoder?: FrameDecoder;
+    random?: () => number;
+    sink?: RecordingSink;
+    model?: MarketModel;
+  } = {},
 ): Harness {
   const markets = opts.markets ?? testMarkets();
   const sk = buildSkeleton(markets);

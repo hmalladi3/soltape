@@ -6,7 +6,6 @@ let api: Api;
 afterEach(() => api?.stop());
 
 const SOL_MINT = 'So11111111111111111111111111111111111111112';
-const ORCA_SOL = 'orca:Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE';
 
 describe('HTTP basics', () => {
   // @spec API-HTTP-001
@@ -87,7 +86,9 @@ describe('REST endpoints', () => {
     api.feed.solThree();
     const { status, body } = await api.get('/price/SOL');
     expect(status).toBe(200);
-    expect(Object.keys(body).sort()).toEqual(['degraded', 'disagreement', 'excluded', 'mint', 'price', 'quote', 'seq', 'slot', 'sources', 'spreadBps', 'symbol', 'updatedAt'].sort());
+    expect(Object.keys(body).sort()).toEqual(
+      ['degraded', 'disagreement', 'excluded', 'mint', 'price', 'quote', 'seq', 'slot', 'sources', 'spreadBps', 'symbol', 'updatedAt'].sort(),
+    );
     expect(body).toMatchObject({ symbol: 'SOL', quote: 'USDC', degraded: false, disagreement: false });
     expect(body.price).toBeCloseTo(100.1, 6);
   });
@@ -217,7 +218,15 @@ describe('health', () => {
   it('is ok when every enabled source is live and every market is available', async () => {
     api = await startApi();
     api.feed.live('orca', 'raydium', 'jupiter');
-    for (const [i, p] of [[0, 100], [1, 100], [2, 0.0028], [3, 0.0028], [4, 232], [5, 232]] as const) api.feed.pool(i, p);
+    for (const [i, p] of [
+      [0, 100],
+      [1, 100],
+      [2, 0.0028],
+      [3, 0.0028],
+      [4, 232],
+      [5, 232],
+    ] as const)
+      api.feed.pool(i, p);
     for (const m of [0, 1, 2]) api.feed.quote(m, [100, 0.28, 0.43][m]!);
     const { status, body } = await api.get('/health');
     expect(status).toBe(200);
@@ -260,7 +269,15 @@ describe('health', () => {
     api = await startApi();
     api.feed.live('orca', 'raydium');
     api.reconciler.onSourceState('jupiter', 'disabled');
-    for (const [i, p] of [[0, 100], [1, 100], [2, 0.0028], [3, 0.0028], [4, 232], [5, 232]] as const) api.feed.pool(i, p);
+    for (const [i, p] of [
+      [0, 100],
+      [1, 100],
+      [2, 0.0028],
+      [3, 0.0028],
+      [4, 232],
+      [5, 232],
+    ] as const)
+      api.feed.pool(i, p);
     api.deps.redis = 'down';
     api.deps.postgres = 'down';
     const { body } = await api.get('/health');

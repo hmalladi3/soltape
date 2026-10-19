@@ -6,27 +6,11 @@
     "declaration": false,
     "rootDir": ".",
     "paths": {
-      "@soltape/shared": [
-        "./packages/shared/src/index.ts"
-      ],
-      "@soltape/decoder": [
-        "./packages/decoder/src/index.ts"
-      ],
-      "@soltape/service/*": [
-        "./apps/service/src/*"
-      ],
-      "@soltape/replay/*": [
-        "./apps/replay/src/*"
-      ]
+      "@soltape/shared": ["./packages/shared/src/index.ts"],
+      "@soltape/decoder": ["./packages/decoder/src/index.ts"],
+      "@soltape/service/*": ["./apps/service/src/*"],
+      "@soltape/replay/*": ["./apps/replay/src/*"]
     }
   },
-  "include": [
-    "packages/*/src",
-    "packages/*/test",
-    "apps/*/src",
-    "apps/*/test",
-    "vitest.config.ts",
-    "bench/src",
-    "bench/test"
-  ]
+  "include": ["packages/*/src", "packages/*/test", "apps/*/src", "apps/*/test", "vitest.config.ts", "bench/src", "bench/test"]
 }

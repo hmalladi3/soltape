@@ -47,9 +47,7 @@ export class RpcHttpClient implements RpcHttp {
   /** Own keep-alive pool, so shutdown can close it. */
   private readonly agent = new Agent({ keepAliveTimeout: 30_000 });
 
-  constructor(
-    private readonly opts: { url: string; commitment: string; timeoutMs: number; clock: Clock; fetch?: typeof fetch },
-  ) {}
+  constructor(private readonly opts: { url: string; commitment: string; timeoutMs: number; clock: Clock; fetch?: typeof fetch }) {}
 
   async close(): Promise<void> {
     await this.agent.close();
@@ -80,7 +78,7 @@ export class RpcHttpClient implements RpcHttp {
         dispatcher: this.agent,
       } as unknown as RequestInit);
     } catch (err) {
-      return { ok: false, failure: isTimeout(err) ? { kind: 'timeout' } : { kind: 'network', message: String((err as Error).message ?? err) } };
+      return { ok: false, failure: isTimeout(err) ? { kind: 'timeout' } : { kind: 'network', message: (err as Error).message } };
     }
     if (res.status === 429) {
       await res.body?.cancel();

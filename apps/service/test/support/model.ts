@@ -31,8 +31,14 @@ export function testModel(): MarketModel {
       symbol: 'JUP',
       mint: MINT.JUP,
       venues: [
-        route(0, 'orca', [{ pool: 2, invert: false }, { pool: 0, invert: false }]),
-        route(1, 'raydium', [{ pool: 3, invert: false }, { pool: 1, invert: false }]),
+        route(0, 'orca', [
+          { pool: 2, invert: false },
+          { pool: 0, invert: false },
+        ]),
+        route(1, 'raydium', [
+          { pool: 3, invert: false },
+          { pool: 1, invert: false },
+        ]),
         jup(2),
       ],
     },
@@ -41,8 +47,14 @@ export function testModel(): MarketModel {
       symbol: 'JTO',
       mint: MINT.JTO,
       venues: [
-        route(0, 'orca', [{ pool: 4, invert: true }, { pool: 0, invert: false }]),
-        route(1, 'raydium', [{ pool: 5, invert: true }, { pool: 1, invert: false }]),
+        route(0, 'orca', [
+          { pool: 4, invert: true },
+          { pool: 0, invert: false },
+        ]),
+        route(1, 'raydium', [
+          { pool: 5, invert: true },
+          { pool: 1, invert: false },
+        ]),
         jup(2),
       ],
     },

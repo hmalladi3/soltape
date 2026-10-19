@@ -57,7 +57,12 @@ export function benchDecoder(d: FrameDecoder, frames: Buffer[], throughputMs = 5
 
 export function renderDecoderMarkdown(rs: DecoderBenchResult[]): string {
   const m = machineSpec();
-  const rows = rs.map((r) => `| ${r.impl} | ${Math.round(r.framesPerSec).toLocaleString('en-US')} | ${(r.p50 / 1000).toFixed(2)} µs | ${(r.p99 / 1000).toFixed(2)} µs | ${(r.p999 / 1000).toFixed(2)} µs | ${(r.max / 1000).toFixed(1)} µs |`).join('\n');
+  const rows = rs
+    .map(
+      (r) =>
+        `| ${r.impl} | ${Math.round(r.framesPerSec).toLocaleString('en-US')} | ${(r.p50 / 1000).toFixed(2)} µs | ${(r.p99 / 1000).toFixed(2)} µs | ${(r.p999 / 1000).toFixed(2)} µs | ${(r.max / 1000).toFixed(1)} µs |`,
+    )
+    .join('\n');
   return `## Decoder microbenchmark\n\n**${m.label}**: ${m.cpu}, Node ${m.node}, ${m.rust}, commit \`${m.commit}\`. Real mainnet account frames; latency measured under GC pressure.\n\n| Decoder | Frames/s | p50 | p99 | p99.9 | max |\n|---|---:|---:|---:|---:|---:|\n${rows}\n`;
 }
 

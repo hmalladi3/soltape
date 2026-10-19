@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { createLogger } from '@soltape/service/telemetry/logger.js';
 import { pino } from 'pino';
+import type { MarketsFile } from '@soltape/shared';
 import { coverage } from './check.js';
 import { readFixture } from './fixture.js';
 import { record } from './record.js';
@@ -12,7 +13,9 @@ import { buildBenchSet } from './synthetic.js';
 
 /** Newest committed session fixture, by file name date. */
 export function defaultFixture(dir = 'fixtures'): string {
-  const files = readdirSync(dir).filter((f) => /^session-.*\.ndjson\.gz$/.test(f)).sort();
+  const files = readdirSync(dir)
+    .filter((f) => /^session-.*\.ndjson\.gz$/.test(f))
+    .sort();
   if (!files.length) throw new Error(`no fixtures/session-*.ndjson.gz found; run pnpm record`);
   return join(dir, files.at(-1)!);
 }
@@ -60,7 +63,7 @@ async function main(): Promise<void> {
     });
   } else if (cmd === 'check') {
     const path = values.fixture ?? defaultFixture();
-    const { missing, warnings } = coverage(JSON.parse(readFileSync(values.markets, 'utf8')), readFixture(path));
+    const { missing, warnings } = coverage(JSON.parse(readFileSync(values.markets, 'utf8')) as MarketsFile, readFixture(path));
     for (const w of warnings) console.warn(`warning: ${w}`);
     if (missing.length) {
       console.error(`${path} does not cover ${values.markets} (run pnpm record):\n  ${missing.join('\n  ')}`);

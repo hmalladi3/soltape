@@ -2,7 +2,7 @@ node_modules/
 dist/
 target/
 *.node
-.env
+.env.local
 .env.*
 !.env.example
 coverage/

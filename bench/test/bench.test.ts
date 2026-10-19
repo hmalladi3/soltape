@@ -80,7 +80,21 @@ describe('benchmark reports', () => {
   // @spec RPL-BEN-005, RPL-BEN-006, RPL-BEN-008
   it('renders every reported field with the machine specification', () => {
     const md = renderMarkdown([cell(1000, 1, 300), cell(10000, 1, 1500)], machineSpec(), { durationS: 30, warmupS: 10, benchMarkets: 10 });
-    for (const h of ['e2e p50', 'e2e p99', 'e2e p99.9', 'e2e max', 'internal p50', 'internal p99', 'internal p99.9', 'event-loop p99', 'conflated', 'RSS', 'GC pause', 'persist drops']) expect(md).toContain(h);
+    for (const h of [
+      'e2e p50',
+      'e2e p99',
+      'e2e p99.9',
+      'e2e max',
+      'internal p50',
+      'internal p99',
+      'internal p99.9',
+      'event-loop p99',
+      'conflated',
+      'RSS',
+      'GC pause',
+      'persist drops',
+    ])
+      expect(md).toContain(h);
     expect(md).toContain('10 s warmup then 30 s measured');
     expect(md).toMatch(/Node v\d+/);
     expect(md).toContain('knee at 10,000 updates/s');
@@ -126,13 +140,28 @@ describe('decoder microbenchmark', () => {
 describe('benchmark orchestration', () => {
   const built = existsSync(new URL('../../apps/service/dist/main.js', import.meta.url)) && existsSync(new URL('../dist/client.js', import.meta.url));
   // @spec RPL-BEN-001, RPL-BEN-002
-  it.skipIf(!built || !readdirSync(new URL('../../fixtures', import.meta.url)).some((f) => f.startsWith('session-')))('runs a tiny matrix end to end across separate processes', async () => {
-    const { runBench } = await import('../src/run.js');
-    const out = mkdtempSync(join(tmpdir(), 'soltape-bench-out-'));
-    const r = await runBench({ rates: [500], subscribers: [2], warmupS: 1, durationS: 2, clients: 2, benchMarkets: 2, summary: false, outDir: out, replayPort: 28899, servicePort: 28080 });
-    expect(r.cells).toHaveLength(1);
-    expect(r.cells[0]!.e2e.samples).toBeGreaterThan(100);
-    expect(r.cells[0]!.e2e.p50).toBeGreaterThan(0);
-    expect(existsSync(r.jsonPath) && existsSync(r.mdPath)).toBe(true);
-  }, 120_000);
+  it.skipIf(!built || !readdirSync(new URL('../../fixtures', import.meta.url)).some((f) => f.startsWith('session-')))(
+    'runs a tiny matrix end to end across separate processes',
+    async () => {
+      const { runBench } = await import('../src/run.js');
+      const out = mkdtempSync(join(tmpdir(), 'soltape-bench-out-'));
+      const r = await runBench({
+        rates: [500],
+        subscribers: [2],
+        warmupS: 1,
+        durationS: 2,
+        clients: 2,
+        benchMarkets: 2,
+        summary: false,
+        outDir: out,
+        replayPort: 28899,
+        servicePort: 28080,
+      });
+      expect(r.cells).toHaveLength(1);
+      expect(r.cells[0]!.e2e.samples).toBeGreaterThan(100);
+      expect(r.cells[0]!.e2e.p50).toBeGreaterThan(0);
+      expect(existsSync(r.jsonPath) && existsSync(r.mdPath)).toBe(true);
+    },
+    120_000,
+  );
 });

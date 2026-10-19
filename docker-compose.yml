@@ -1,0 +1,93 @@
+# soltape: `docker compose up` (live mainnet), `docker compose --profile replay up` (offline
+# replay of recorded mainnet traffic), `docker compose --profile bench run --rm bench`.
+# The host port is configurable: SOLTAPE_PORT (default 8080), REPLAY_PORT (default 8899).
+# @spec DLV-CMP-001, DLV-CMP-002, DLV-CMP-003, DLV-CMP-004, DLV-CMP-005, DLV-CMP-006, DLV-CMP-007
+name: soltape
+
+x-app: &app
+  image: ghcr.io/hmalladi3/soltape:latest
+  build:
+    context: .
+    dockerfile: docker/Dockerfile
+  pull_policy: missing
+  restart: unless-stopped
+  depends_on:
+    redis:
+      condition: service_started
+    postgres:
+      condition: service_started
+
+x-env: &env
+  REDIS_URL: redis://redis:6379
+  DATABASE_URL: postgres://soltape:soltape@postgres:5432/soltape
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+
+services:
+  app:
+    <<: *app
+    profiles: [live]
+    ports: ['${SOLTAPE_PORT:-8080}:8080']
+    environment:
+      <<: *env
+      JUPITER_API_KEY: ${JUPITER_API_KEY:-}
+
+  app-replay:
+    <<: *app
+    profiles: [replay]
+    ports: ['${SOLTAPE_PORT:-8080}:8080']
+    depends_on:
+      redis:
+        condition: service_started
+      postgres:
+        condition: service_started
+      replay:
+        condition: service_started
+    environment:
+      <<: *env
+      RPC_WS_URL: ws://replay:8899
+      RPC_HTTP_URL: http://replay:8899
+      JUPITER_URL: http://replay:8899/price/v3
+      JUPITER_API_KEY: replay
+
+  replay:
+    <<: *app
+    profiles: [replay]
+    command: ['replay', '--mode', 'realtime', '--port', '8899']
+    ports: ['${REPLAY_PORT:-8899}:8899']
+    depends_on: []
+    healthcheck:
+      test: ['CMD', 'node', '-e', "fetch('http://127.0.0.1:8899/control/status').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+
+  bench:
+    <<: *app
+    profiles: [bench]
+    restart: 'no'
+    command: ['bench']
+    environment:
+      <<: *env
+    volumes:
+      - ./bench/results:/app/bench/results
+    healthcheck:
+      disable: true
+
+  redis:
+    image: redis:7-alpine
+    command: ['redis-server', '--save', '', '--appendonly', 'no']
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: soltape
+      POSTGRES_PASSWORD: soltape
+      POSTGRES_DB: soltape
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U soltape']
+      interval: 5s
+
+volumes:
+  pgdata:

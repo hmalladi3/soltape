@@ -165,7 +165,8 @@ export function resolveVenue(model: MarketModel, venue: PoolVenue, facts: Readon
         }
         if (i < v.legs.length - 1 && (at === quote || at === m.mint)) failed = `${where}: route leg ${f.address} must lead to an intermediate mint, not ${at}`;
       }
-      if (!failed && at !== quote) failed = `${where}: ${v.kind === 'pool' ? 'pool' : 'route'} ${v.legs.map((l) => model.pools[l.pool]!.address).join(' → ')} ends in ${at}, not the quote mint ${quote}`;
+      if (!failed && at !== quote)
+        failed = `${where}: ${v.kind === 'pool' ? 'pool' : 'route'} ${v.legs.map((l) => model.pools[l.pool]!.address).join(' → ')} ends in ${at}, not the quote mint ${quote}`;
       if (failed) {
         errors.push({ pools: v.legs.map((l) => l.pool), message: failed });
         continue;

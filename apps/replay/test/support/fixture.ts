@@ -28,10 +28,29 @@ export function smallFixture(framesPerPool = 3, durationMs = 1000): Fixture {
     }
   }
   return {
-    header: { kind: 'header', version: FIXTURE_VERSION, recordedAt: '2026-10-19T00:00:00Z', durationMs: Math.max(durationMs, t / 1000 + 1), recorderVersion: '1', commit: 'test', programIds: { orca: ORCA, raydium: 'CAMMCzo5YL8w4VFF8KVHrK22GGUsp5VTaW7grrKgrWqK' }, markets, synthetic: { jupiter: true } },
+    header: {
+      kind: 'header',
+      version: FIXTURE_VERSION,
+      recordedAt: '2026-10-19T00:00:00Z',
+      durationMs: Math.max(durationMs, t / 1000 + 1),
+      recorderVersion: '1',
+      commit: 'test',
+      programIds: { orca: ORCA, raydium: 'CAMMCzo5YL8w4VFF8KVHrK22GGUsp5VTaW7grrKgrWqK' },
+      markets,
+      synthetic: { jupiter: true },
+    },
     accounts: acc,
     frames,
     slots,
-    jupiter: [{ kind: 'jupiter', t: 0, body: JSON.stringify({ So11111111111111111111111111111111111111112: { usdPrice: 104, blockId: 1000 }, EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v: { usdPrice: 1, blockId: 1000 } }) }],
+    jupiter: [
+      {
+        kind: 'jupiter',
+        t: 0,
+        body: JSON.stringify({
+          So11111111111111111111111111111111111111112: { usdPrice: 104, blockId: 1000 },
+          EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v: { usdPrice: 1, blockId: 1000 },
+        }),
+      },
+    ],
   };
 }

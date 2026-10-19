@@ -105,9 +105,7 @@ export class PgHistory implements ConsolidatedListener, ObservationListener, His
   private reconnectTimer: NodeJS.Timeout | undefined;
   private readonly log: Logger;
 
-  constructor(
-    private readonly d: { url: string; model: MarketModel; clock: Clock; logger: Logger; telemetry?: TelemetryHooks; options?: Partial<PgHistoryOptions> },
-  ) {
+  constructor(private readonly d: { url: string; model: MarketModel; clock: Clock; logger: Logger; telemetry?: TelemetryHooks; options?: Partial<PgHistoryOptions> }) {
     this.o = { ...DEFAULT_PG_OPTIONS, ...d.options };
     this.log = d.logger.child({ component: 'persistence', sink: 'postgres' });
     // @spec PER-PG-015
@@ -205,7 +203,7 @@ export class PgHistory implements ConsolidatedListener, ObservationListener, His
     while (this.pending() > 0 && !this.stopped) {
       const before = this.pending();
       await this.flushAll();
-      await Promise.all(Object.values(this.inflight));
+      await Promise.all(Object.values(this.inflight).filter((p): p is Promise<void> => p !== null));
       if (this.pending() >= before && !this.up) return;
     }
   }
@@ -330,7 +328,7 @@ export class PgHistory implements ConsolidatedListener, ObservationListener, His
     clearInterval(this.flushTimer);
     clearInterval(this.maintenanceTimer);
     clearTimeout(this.reconnectTimer);
-    await Promise.all(Object.values(this.inflight));
+    await Promise.all(Object.values(this.inflight).filter((p): p is Promise<void> => p !== null));
     await Promise.allSettled([this.writer.end(), this.reader.end()]);
   }
 }

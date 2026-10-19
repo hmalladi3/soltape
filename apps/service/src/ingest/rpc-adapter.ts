@@ -344,13 +344,15 @@ export class RpcVenueAdapter {
   /** Cold path: subscription confirmations and JSON-RPC errors. */
   // @spec ING-RPC-012
   private onControl(buf: Buffer): void {
-    let msg: { id?: unknown; result?: unknown; error?: { code?: unknown } };
+    let parsed: unknown;
     try {
-      msg = JSON.parse(buf.toString('utf8')) as typeof msg;
+      parsed = JSON.parse(buf.toString('utf8'));
     } catch {
       return;
     }
-    if (typeof msg !== 'object' || msg === null || typeof msg.id !== 'number') return;
+    if (typeof parsed !== 'object' || parsed === null) return;
+    const msg = parsed as { id?: unknown; result?: unknown; error?: { code?: unknown } };
+    if (typeof msg.id !== 'number') return;
     const p = this.pending.get(msg.id);
     if (!p) return;
     if (msg.error !== undefined || typeof msg.result !== 'number') {

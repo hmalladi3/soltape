@@ -19,7 +19,15 @@ it('runs the unchanged service against replay: three sources, degraded on a drop
   cleanup.push(() => replay.stop());
   const base = `http://127.0.0.1:${replay.port}`;
   const cfg = loadConfig(
-    { RPC_HTTP_URL: base, RPC_WS_URL: `ws://127.0.0.1:${replay.port}`, JUPITER_URL: `${base}/price/v3`, JUPITER_API_KEY: 'replay', PORT: '0', REDIS_URL: 'redis://127.0.0.1:1', DATABASE_URL: 'postgres://u:p@127.0.0.1:1/x' },
+    {
+      RPC_HTTP_URL: base,
+      RPC_WS_URL: `ws://127.0.0.1:${replay.port}`,
+      JUPITER_URL: `${base}/price/v3`,
+      JUPITER_API_KEY: 'replay',
+      PORT: '0',
+      REDIS_URL: 'redis://127.0.0.1:1',
+      DATABASE_URL: 'postgres://u:p@127.0.0.1:1/x',
+    },
     markets,
   );
   if (!cfg.ok) throw new Error(cfg.errors.join());

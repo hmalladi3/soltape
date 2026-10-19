@@ -1,7 +1,7 @@
 import type { PoolClient } from 'pg';
 
-/** Advisory lock key shared by migrations and partition maintenance ("soltape" in ASCII). */
-export const ADVISORY_LOCK_KEY = 0x736f6c74617065;
+/** Advisory lock key shared by migrations and partition maintenance ("solt" in ASCII; fits a JS number exactly). */
+export const ADVISORY_LOCK_KEY = 0x736f6c74;
 
 /**
  * Ordered, append-only SQL migrations. Hand-written because declarative partitioning

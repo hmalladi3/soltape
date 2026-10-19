@@ -4,7 +4,9 @@ import { PhaseHolder, ServiceRuntime, type PersistenceLifecycle, type ServerLife
 import { sleep, waitFor } from '../../support/fake-rpc.js';
 import { recordingLogger } from '../../support/ingest.js';
 
-function setup(over: { restore?: () => Promise<void>; adapterStart?: (id: string) => Promise<void>; adapterStop?: () => Promise<void>; available?: () => boolean; graceMs?: number } = {}) {
+function setup(
+  over: { restore?: () => Promise<void>; adapterStart?: (id: string) => Promise<void>; adapterStop?: () => Promise<void>; available?: () => boolean; graceMs?: number } = {},
+) {
   const log: string[] = [];
   const logs: { level: string; obj: object; msg?: string }[] = [];
   const exits: number[] = [];
@@ -119,7 +121,15 @@ describe('shutdown', () => {
     await rt.start();
     log.length = 0;
     await rt.shutdown('SIGTERM');
-    expect(log).toEqual(['server.stopAccepting:stopping', 'reconciler.freeze', 'orca.stop', 'jupiter.stop', 'server.closeClients:1001', 'persistence.flush:5000', 'persistence.close']);
+    expect(log).toEqual([
+      'server.stopAccepting:stopping',
+      'reconciler.freeze',
+      'orca.stop',
+      'jupiter.stop',
+      'server.closeClients:1001',
+      'persistence.flush:5000',
+      'persistence.close',
+    ]);
     expect(phase.phase).toBe('stopping');
     expect(exits).toEqual([0]);
   });
