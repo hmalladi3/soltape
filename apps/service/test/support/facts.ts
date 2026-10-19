@@ -29,8 +29,8 @@ const f = (address: string, venue: 'orca' | 'raydium', mintA: string, mintB: str
 
 /** On-chain facts for every pool in config/markets.json, as observed on mainnet 2026-10-19. */
 export const POOL_FACTS: PoolFacts[] = [
-  f('HJPjoWUrhoZzkNfRpHuieeFk9WcZWjwy6PBjZ81ngndJ', 'orca', MINT.SOL, MINT.USDC),
-  f('2QdhepnKRTLjjSqPL1PtKNwqrUkoLee5Gqs8bvZhRdMv', 'raydium', MINT.SOL, MINT.USDC),
+  f('Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE', 'orca', MINT.SOL, MINT.USDC),
+  f('3ucNos4NbumPLZNWztqGHNFFgkHeRMBQAVemeeomsUxv', 'raydium', MINT.SOL, MINT.USDC),
   f('C1MgLojNLWBKADvu9BHdtgzz1oZX4dZ5zGdGcgvvW8Wz', 'orca', MINT.JUP, MINT.SOL),
   f('EZVkeboWeXygtq8LMyENHyXdF5wpYrtExRNH9UwB1qYw', 'raydium', MINT.JUP, MINT.SOL),
   f('2UhFnySoJi6c89aydGAGS7ZRemo2dbkFRhvSJqDX4gHJ', 'orca', MINT.SOL, MINT.JTO),

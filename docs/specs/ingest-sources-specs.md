@@ -4,65 +4,65 @@ LLD: `docs/llds/ingest-sources.md`
 
 ## Common
 
-- [ ] **ING-SRC-001**: Each source adapter (Orca, Raydium, Jupiter) shall report facts to the reconciler through the injected source sink and shall not judge eligibility, ordering, or staleness. The facts are pool updates, quotes, liveness signals, connection state, pool suspicion, and pool misconfiguration.
-- [ ] **ING-SRC-002**: Each source adapter shall identify pools and markets by integer indexes assigned at startup from the markets file.
-- [ ] **ING-SRC-003**: When a source frame or response is received, the source adapter shall, as its first action, take a monotonic receive timestamp and a wall-clock receive timestamp from the injected `Clock`, deriving neither from the other. The production `Clock` reads `performance.now()` and `Date.now()`.
+- [x] **ING-SRC-001**: Each source adapter (Orca, Raydium, Jupiter) shall report facts to the reconciler through the injected source sink and shall not judge eligibility, ordering, or staleness. The facts are pool updates, quotes, liveness signals, connection state, pool suspicion, and pool misconfiguration.
+- [x] **ING-SRC-002**: Each source adapter shall identify pools and markets by integer indexes assigned at startup from the markets file.
+- [x] **ING-SRC-003**: When a source frame or response is received, the source adapter shall, as its first action, take a monotonic receive timestamp and a wall-clock receive timestamp from the injected `Clock`, deriving neither from the other. The production `Clock` reads `performance.now()` and `Date.now()`.
 
 ## RPC Venue Adapter (Orca and Raydium): Validation
 
-- [ ] **ING-RPC-001**: When an RPC venue adapter starts or reconnects, it shall fetch all of its pools with `getMultipleAccounts` using `base64` encoding and the configured commitment.
-- [ ] **ING-RPC-002**: When an RPC venue adapter validates a pool, it shall require the account owner to equal the venue's program id and the decoded mints to equal the mints declared for that pool or route leg in the markets file.
-- [ ] **ING-RPC-003**: When an RPC venue adapter validates a Whirlpool pool, it shall read both mints' `decimals` from their SPL Mint accounts (byte offset 44) once and treat them as immutable. For Raydium CLMM pools it shall use the decimals stored in the pool account.
-- [ ] **ING-RPC-004**: When an RPC venue adapter validates a pool, it shall record whether the quote side is token B/1 or token A/0 for use in price normalization.
-- [ ] **ING-RPC-005**: If an RPC venue adapter first fetches a pool after startup has completed (because the source was unreachable at boot), and the pool fails owner or mint validation or the account does not exist, then the RPC venue adapter shall report the pool to the reconciler as `misconfigured`, never subscribe to it, and log an error, without exiting the process.
-- [ ] **ING-RPC-006**: When an RPC venue adapter completes validation, it shall emit each validated pool's snapshot as a pool update tagged with the response's `context.slot`.
+- [x] **ING-RPC-001**: When an RPC venue adapter starts or reconnects, it shall fetch all of its pools with `getMultipleAccounts` using `base64` encoding and the configured commitment.
+- [x] **ING-RPC-002**: When an RPC venue adapter validates a pool, it shall require the account owner to equal the venue's program id and the decoded mints to equal the mints declared for that pool or route leg in the markets file.
+- [x] **ING-RPC-003**: When an RPC venue adapter validates a Whirlpool pool, it shall read both mints' `decimals` from their SPL Mint accounts (byte offset 44) once and treat them as immutable. For Raydium CLMM pools it shall use the decimals stored in the pool account.
+- [x] **ING-RPC-004**: When an RPC venue adapter validates a pool, it shall record whether the quote side is token B/1 or token A/0 for use in price normalization.
+- [x] **ING-RPC-005**: If an RPC venue adapter first fetches a pool after startup has completed (because the source was unreachable at boot), and the pool fails owner or mint validation or the account does not exist, then the RPC venue adapter shall report the pool to the reconciler as `misconfigured`, never subscribe to it, and log an error, without exiting the process.
+- [x] **ING-RPC-006**: When an RPC venue adapter completes validation, it shall emit each validated pool's snapshot as a pool update tagged with the response's `context.slot`.
 
 ## RPC Venue Adapter: Subscriptions and Liveness
 
-- [ ] **ING-RPC-010**: Each RPC venue adapter shall use its own WebSocket connection, separate from every other venue's.
-- [ ] **ING-RPC-011**: When an RPC venue adapter connects, it shall send `slotSubscribe` before any `accountSubscribe`, then send `accountSubscribe` for each valid pool with `base64` encoding and the configured commitment.
-- [ ] **ING-RPC-012**: When a subscription confirmation arrives, the RPC venue adapter shall map the returned subscription id to the pool index of the originating request.
-- [ ] **ING-RPC-013**: If an `accountSubscribe` request receives no confirmation within 5 seconds or receives a JSON-RPC error, then the RPC venue adapter shall retry that pool's subscription up to 3 times with full-jitter backoff, counting failures by error code.
-- [ ] **ING-RPC-014**: If a pool's subscription is still unconfirmed after all retries, then the RPC venue adapter shall leave that pool without data and retry its subscription every 60 seconds in the background.
-- [ ] **ING-RPC-015**: When `slotSubscribe` and at least one pool subscription are confirmed and the post-subscribe snapshot has been applied, the RPC venue adapter shall report state `live`.
-- [ ] **ING-RPC-016**: When a slot notification arrives, the RPC venue adapter shall report it to the sink as that venue's liveness signal.
-- [ ] **ING-RPC-017**: The RPC venue adapter shall send a WebSocket ping every 15 seconds on its connection.
+- [x] **ING-RPC-010**: Each RPC venue adapter shall use its own WebSocket connection, separate from every other venue's.
+- [x] **ING-RPC-011**: When an RPC venue adapter connects, it shall send `slotSubscribe` before any `accountSubscribe`, then send `accountSubscribe` for each valid pool with `base64` encoding and the configured commitment.
+- [x] **ING-RPC-012**: When a subscription confirmation arrives, the RPC venue adapter shall map the returned subscription id to the pool index of the originating request.
+- [x] **ING-RPC-013**: If an `accountSubscribe` request receives no confirmation within 5 seconds or receives a JSON-RPC error, then the RPC venue adapter shall retry that pool's subscription up to 3 times with full-jitter backoff, counting failures by error code.
+- [x] **ING-RPC-014**: If a pool's subscription is still unconfirmed after all retries, then the RPC venue adapter shall leave that pool without data and retry its subscription every 60 seconds in the background.
+- [x] **ING-RPC-015**: When `slotSubscribe` and at least one pool subscription are confirmed and the post-subscribe snapshot has been applied, the RPC venue adapter shall report state `live`.
+- [x] **ING-RPC-016**: When a slot notification arrives, the RPC venue adapter shall report it to the sink as that venue's liveness signal.
+- [x] **ING-RPC-017**: The RPC venue adapter shall send a WebSocket ping every 15 seconds on its connection.
 
 ## RPC Venue Adapter: Hot Path
 
-- [ ] **ING-RPC-020**: When an RPC venue WebSocket message arrives, the RPC venue adapter shall pass the message `Buffer` directly to `decodeNotification` with the adapter's preallocated output array, without converting it to a string or parsing it as JSON.
-- [ ] **ING-RPC-021**: When `decodeNotification` returns `ACCOUNT` for a subscription id mapped to a pool, the RPC venue adapter shall report a pool update with the decoded sqrt ratio, liquidity, slot, and receive timestamps.
-- [ ] **ING-RPC-022**: When `decodeNotification` returns `ACCOUNT` for a subscription id that is not mapped to any pool, the RPC venue adapter shall discard the update and increment a counter.
-- [ ] **ING-RPC-023**: When `decodeNotification` returns `OTHER`, the RPC venue adapter shall parse the frame as JSON to handle subscription confirmations and JSON-RPC errors.
-- [ ] **ING-RPC-024**: When `decodeNotification` returns a negative status, the RPC venue adapter shall increment the decode error counter for that code. Where the output's subscription id maps to a pool, it shall also report that pool to the reconciler as suspect.
-- [ ] **ING-RPC-025**: When `decodeNotification` reports an unexpected account size, the RPC venue adapter shall log a warning once per layout per process lifetime.
-- [ ] **ING-RPC-026**: The RPC venue adapter's WebSocket client shall enforce a 64 KiB maximum inbound message size.
+- [x] **ING-RPC-020**: When an RPC venue WebSocket message arrives, the RPC venue adapter shall pass the message `Buffer` directly to `decodeNotification` with the adapter's preallocated output array, without converting it to a string or parsing it as JSON.
+- [x] **ING-RPC-021**: When `decodeNotification` returns `ACCOUNT` for a subscription id mapped to a pool, the RPC venue adapter shall report a pool update with the decoded sqrt ratio, liquidity, slot, and receive timestamps.
+- [x] **ING-RPC-022**: When `decodeNotification` returns `ACCOUNT` for a subscription id that is not mapped to any pool, the RPC venue adapter shall discard the update and increment a counter.
+- [x] **ING-RPC-023**: When `decodeNotification` returns `OTHER`, the RPC venue adapter shall parse the frame as JSON to handle subscription confirmations and JSON-RPC errors.
+- [x] **ING-RPC-024**: When `decodeNotification` returns a negative status, the RPC venue adapter shall increment the decode error counter for that code. Where the output's subscription id maps to a pool, it shall also report that pool to the reconciler as suspect.
+- [x] **ING-RPC-025**: When `decodeNotification` reports an unexpected account size, the RPC venue adapter shall log a warning once per layout per process lifetime.
+- [x] **ING-RPC-026**: The RPC venue adapter's WebSocket client shall enforce a 64 KiB maximum inbound message size.
 
 ## RPC Venue Adapter: Revalidation
 
-- [ ] **ING-RPC-031**: When an RPC venue pool has received no notification for 20 seconds, the RPC venue adapter shall re-read it with `getMultipleAccounts`, batching all such quiet pools of that venue into one request, with at most one revalidation request in flight per venue.
+- [x] **ING-RPC-031**: When an RPC venue pool has received no notification for 20 seconds, the RPC venue adapter shall re-read it with `getMultipleAccounts`, batching all such quiet pools of that venue into one request, with at most one revalidation request in flight per venue.
 
 ## RPC Venue Adapter: Reconnect
 
-- [ ] **ING-RPC-040**: If an RPC venue WebSocket closes, errors, or receives no pong within 10 seconds of a ping, then the RPC venue adapter shall report state `down` and reconnect.
-- [ ] **ING-RPC-041**: If the reconciler reports an RPC venue `stale` continuously for 10 seconds, then the RPC venue adapter shall close and reconnect that venue's connection.
-- [ ] **ING-RPC-042**: When an RPC venue adapter reconnects, it shall wait `random(0, min(30 s, 250 ms × 2^attempt))` before each attempt, and shall reset the attempt count after the connection has remained `live` for 60 seconds.
-- [ ] **ING-RPC-043**: When an RPC venue adapter reconnects, it shall clear its subscription-id map, resubscribe, and apply a fresh `getMultipleAccounts` snapshot subject to the slot ordering rule.
-- [ ] **ING-RPC-044**: If an RPC venue HTTP request receives status 429, then the adapter shall wait for the `Retry-After` duration when present, or otherwise the full-jitter backoff delay, before retrying.
+- [x] **ING-RPC-040**: If an RPC venue WebSocket closes, errors, or receives no pong within 10 seconds of a ping, then the RPC venue adapter shall report state `down` and reconnect.
+- [x] **ING-RPC-041**: If the reconciler reports an RPC venue `stale` continuously for 10 seconds, then the RPC venue adapter shall close and reconnect that venue's connection.
+- [x] **ING-RPC-042**: When an RPC venue adapter reconnects, it shall wait `random(0, min(30 s, 250 ms × 2^attempt))` before each attempt, and shall reset the attempt count after the connection has remained `live` for 60 seconds.
+- [x] **ING-RPC-043**: When an RPC venue adapter reconnects, it shall clear its subscription-id map, resubscribe, and apply a fresh `getMultipleAccounts` snapshot subject to the slot ordering rule.
+- [x] **ING-RPC-044**: If an RPC venue HTTP request receives status 429, then the adapter shall wait for the `Retry-After` duration when present, or otherwise the full-jitter backoff delay, before retrying.
 
 ## Jupiter Adapter
 
-- [ ] **ING-JUP-001**: Where `JUPITER_API_KEY` is unset, the Jupiter adapter shall report state `disabled` and make no requests.
-- [ ] **ING-JUP-002**: Where `JUPITER_API_KEY` is set, the Jupiter adapter shall request prices for all tracked mints and the quote mint in a single request with the `x-api-key` header, scheduling each poll only after the previous poll settles, at the configured interval (default 2 s).
-- [ ] **ING-JUP-003**: If a Jupiter request does not complete within 2 seconds, then the Jupiter adapter shall abort it and count it as a failed poll.
-- [ ] **ING-JUP-004**: When a Jupiter response arrives, the Jupiter adapter shall validate each mint entry independently, and shall skip entries that are missing or invalid without affecting other mints.
-- [ ] **ING-JUP-005**: When a Jupiter response contains a valid quote-mint (USDC) entry, the Jupiter adapter shall report each valid tracked mint's price as `usdPrice[mint] / usdPrice[USDC]` from that same response.
-- [ ] **ING-JUP-006**: If a Jupiter response lacks a valid quote-mint entry, then the Jupiter adapter shall report no price updates from that response.
-- [ ] **ING-JUP-007**: When a Jupiter poll succeeds, the Jupiter adapter shall report a liveness signal, carrying `blockId` as the slot when present and null otherwise.
-- [ ] **ING-JUP-009**: When the first Jupiter poll succeeds, the Jupiter adapter shall report state `live`. After 3 consecutive failed polls, it shall report state `down`.
-- [ ] **ING-JUP-010**: If a Jupiter request receives status 429, then the Jupiter adapter shall wait for the `Retry-After` duration when present, or otherwise double its poll interval up to 30 seconds, and shall return toward the configured interval after successful polls.
+- [x] **ING-JUP-001**: Where `JUPITER_API_KEY` is unset, the Jupiter adapter shall report state `disabled` and make no requests.
+- [x] **ING-JUP-002**: Where `JUPITER_API_KEY` is set, the Jupiter adapter shall request prices for all tracked mints and the quote mint in a single request with the `x-api-key` header, scheduling each poll only after the previous poll settles, at the configured interval (default 2 s).
+- [x] **ING-JUP-003**: If a Jupiter request does not complete within 2 seconds, then the Jupiter adapter shall abort it and count it as a failed poll.
+- [x] **ING-JUP-004**: When a Jupiter response arrives, the Jupiter adapter shall validate each mint entry independently, and shall skip entries that are missing or invalid without affecting other mints.
+- [x] **ING-JUP-005**: When a Jupiter response contains a valid quote-mint (USDC) entry, the Jupiter adapter shall report each valid tracked mint's price as `usdPrice[mint] / usdPrice[USDC]` from that same response.
+- [x] **ING-JUP-006**: If a Jupiter response lacks a valid quote-mint entry, then the Jupiter adapter shall report no price updates from that response.
+- [x] **ING-JUP-007**: When a Jupiter poll succeeds, the Jupiter adapter shall report a liveness signal, carrying `blockId` as the slot when present and null otherwise.
+- [x] **ING-JUP-009**: When the first Jupiter poll succeeds, the Jupiter adapter shall report state `live`. After 3 consecutive failed polls, it shall report state `down`.
+- [x] **ING-JUP-010**: If a Jupiter request receives status 429, then the Jupiter adapter shall wait for the `Retry-After` duration when present, or otherwise double its poll interval up to 30 seconds, and shall return toward the configured interval after successful polls.
 
-- [ ] **ING-JUP-011**: If a Jupiter response body as a whole fails schema validation (not a JSON object of mint entries), then the Jupiter adapter shall count it as a failed poll.
+- [x] **ING-JUP-011**: If a Jupiter response body as a whole fails schema validation (not a JSON object of mint entries), then the Jupiter adapter shall count it as a failed poll.
 
 ## Deferred
 

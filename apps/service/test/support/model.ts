@@ -8,7 +8,7 @@ import { MINT, POOL_FACTS } from './facts.js';
  *   market 2 JTO: orca route [pool 4 SOL/JTO inverted, pool 0], raydium route [pool 5 inverted, pool 1], jupiter
  */
 export function testModel(): MarketModel {
-  const pools: Pool[] = POOL_FACTS.slice(0, 6).map((p, index) => ({ ...p, index, sourceId: `${p.venue}:${p.address}` }));
+  const pools: Pool[] = POOL_FACTS.slice(0, 6).map((p, index) => ({ ...p, index, sourceId: `${p.venue}:${p.address}`, resolved: true }));
   const direct = (index: number, venue: 'orca' | 'raydium', pool: number): VenueObservationDef => ({
     index,
     venue,

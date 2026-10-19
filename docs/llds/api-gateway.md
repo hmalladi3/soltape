@@ -51,7 +51,7 @@ Every `:mint` parameter accepts either a **base58 mint address** or a **configur
   "symbol": "SOL",
   "quote": "USDC",
   "price": 187.4213,
-  "sources": ["orca:HJPj…", "raydium:…", "jupiter"],
+  "sources": ["orca:Czfq…", "raydium:…", "jupiter"],
   "excluded": [],
   "spreadBps": 3.1,
   "degraded": false,
@@ -70,7 +70,7 @@ Returns one entry per configured venue, eligible or not:
 
 ```json
 { "mint": "…", "symbol": "SOL", "sources": [
-  { "source": "orca:HJPj…", "venue": "orca", "kind": "pool", "sourceState": "live",
+  { "source": "orca:Czfq…", "venue": "orca", "kind": "pool", "sourceState": "live",
     "price": 187.43, "size": 412000.5, "slot": 372000123, "receivedAt": "…", "ageMs": 180,
     "eligible": true, "reason": null },
   { "source": "jupiter", "venue": "jupiter", "kind": "aggregator", "sourceState": "disabled",

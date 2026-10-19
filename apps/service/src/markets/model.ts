@@ -1,4 +1,4 @@
-import type { MarketsFile, PoolVenue, PoolVenueConfig, Result, SourceId } from '@soltape/shared';
+import type { MarketsFile, PoolVenue, Result, SourceId } from '@soltape/shared';
 
 /** On-chain facts about a pool, from boot validation. */
 export interface PoolFacts {
@@ -15,6 +15,8 @@ export interface Pool extends PoolFacts {
   index: number;
   /** `<venue>:<address>`, used as a trigger and in route attribution. */
   sourceId: string;
+  /** False until on-chain facts (mints, decimals) have been applied by `resolveVenue`. */
+  resolved: boolean;
 }
 
 /** One hop of a direct pool or route. Leg price = pAB, or 1/pAB when `invert`. */
@@ -54,81 +56,46 @@ export interface MarketModel {
 const VENUE_ORDER = ['orca', 'raydium', 'jupiter'] as const;
 
 /** Every pool address referenced by a markets file, in first-seen order. */
-export function poolAddresses(markets: MarketsFile): string[] {
+export function poolAddresses(markets: MarketsFile, venue?: PoolVenue): string[] {
   const seen = new Set<string>();
   for (const m of markets.markets) {
-    for (const v of [m.venues.orca, m.venues.raydium]) if (v) for (const a of 'pool' in v ? [v.pool] : v.route) seen.add(a);
+    for (const v of ['orca', 'raydium'] as const) {
+      const cfg = m.venues[v];
+      if (!cfg || (venue && v !== venue)) continue;
+      for (const a of 'pool' in cfg ? [cfg.pool] : cfg.route) seen.add(a);
+    }
   }
   return [...seen];
 }
 
+/** A pool or observation that failed resolution against on-chain facts. */
+export interface ResolveError {
+  /** Pool indexes involved (marked misconfigured when found after boot). */
+  pools: number[];
+  message: string;
+}
+
 /**
- * Resolves the markets file against on-chain pool facts: every direct pool must pair the
- * market mint with the quote mint, every route must chain market → X → quote, and every
- * pool must be owned by the venue it is configured under. Assigns dense indexes and leg
- * orientation. Returns every error found.
- * @spec ING-RPC-002, ING-RPC-004, RUN-CFG-004, RUN-CFG-005
+ * Builds the model structure from config alone: dense pool and market indexes, venue
+ * observation definitions, and pool users. Pool mints, decimals and leg orientation are
+ * unknown (`resolved: false`) until `resolveVenue` runs with on-chain facts, so the service
+ * can start before any RPC venue is reachable (RUN-LIFE-005).
  */
-export function buildModel(markets: MarketsFile, facts: ReadonlyMap<string, PoolFacts>): Result<MarketModel> {
+export function buildSkeleton(markets: MarketsFile): Result<MarketModel> {
   const errors: string[] = [];
   const pools: Pool[] = [];
   const poolIndexByAddress = new Map<string, number>();
-  const quote = markets.quote.mint;
-
-  const poolIndex = (address: string, venue: PoolVenue, where: string): Pool | null => {
-    const f = facts.get(address);
-    if (!f) {
-      errors.push(`${where}: pool ${address} was not found on-chain`);
-      return null;
-    }
-    if (f.venue !== venue) {
-      errors.push(`${where}: pool ${address} is a ${f.venue} pool, configured under ${venue}`);
-      return null;
-    }
+  const poolFor = (address: string, venue: PoolVenue): number => {
     let i = poolIndexByAddress.get(address);
     if (i === undefined) {
       i = pools.length;
       poolIndexByAddress.set(address, i);
-      pools.push({ ...f, index: i, sourceId: `${venue}:${address}` });
+      pools.push({ address, venue, mintA: '', mintB: '', decimalsA: Number.NaN, decimalsB: Number.NaN, index: i, sourceId: `${venue}:${address}`, resolved: false });
+    } else if (pools[i]!.venue !== venue) {
+      errors.push(`pool ${address} is configured under both ${pools[i]!.venue} and ${venue}`);
     }
-    return pools[i]!;
+    return i;
   };
-
-  /** Leg converting `from` into the pool's other mint; null if the pool lacks `from`. */
-  const legFrom = (p: Pool, from: string): { leg: Leg; to: string } | null => {
-    if (p.mintA === from) return { leg: { pool: p.index, invert: false }, to: p.mintB };
-    if (p.mintB === from) return { leg: { pool: p.index, invert: true }, to: p.mintA };
-    return null;
-  };
-
-  const resolveVenue = (symbol: string, mint: string, venue: PoolVenue, cfg: PoolVenueConfig): { legs: Leg[]; sourceId: string } | null => {
-    const where = `${symbol}/${venue}`;
-    const addrs = 'pool' in cfg ? [cfg.pool] : cfg.route;
-    const resolved = addrs.map((a) => poolIndex(a, venue, where));
-    if (resolved.some((p) => p === null)) return null;
-    const legs: Leg[] = [];
-    let at = mint;
-    for (const p of resolved as Pool[]) {
-      const step = legFrom(p, at);
-      if (!step) {
-        errors.push(`${where}: pool ${p.address} (${p.mintA}/${p.mintB}) does not contain ${at}`);
-        return null;
-      }
-      legs.push(step.leg);
-      at = step.to;
-      if (legs.length < addrs.length && (at === quote || at === mint)) {
-        errors.push(`${where}: route leg ${p.address} must lead to an intermediate mint, not ${at}`);
-        return null;
-      }
-    }
-    if (at !== quote) {
-      errors.push(`${where}: ${'pool' in cfg ? `pool ${cfg.pool}` : `route ${cfg.route.join(' → ')}`} ends in ${at}, not the quote mint ${quote}`);
-      return null;
-    }
-    const sourceId = 'pool' in cfg ? `${venue}:${cfg.pool}` : `${venue}:route(${cfg.route.join(',')})`;
-    return { legs, sourceId };
-  };
-
   const out: Market[] = markets.markets.map((m, index) => {
     const venues: VenueObservationDef[] = [];
     for (const venue of VENUE_ORDER) {
@@ -138,23 +105,88 @@ export function buildModel(markets: MarketsFile, facts: ReadonlyMap<string, Pool
       }
       const cfg = m.venues[venue];
       if (!cfg) continue;
-      const r = resolveVenue(m.symbol, m.mint, venue, cfg);
-      if (r) venues.push({ index: venues.length, venue, kind: 'pool' in cfg ? 'pool' : 'route', legs: r.legs, sourceId: r.sourceId });
+      const addrs = 'pool' in cfg ? [cfg.pool] : cfg.route;
+      venues.push({
+        index: venues.length,
+        venue,
+        kind: 'pool' in cfg ? 'pool' : 'route',
+        legs: addrs.map((a) => ({ pool: poolFor(a, venue), invert: false })),
+        sourceId: 'pool' in cfg ? `${venue}:${cfg.pool}` : `${venue}:route(${cfg.route.join(',')})`,
+      });
     }
     return { index, symbol: m.symbol, mint: m.mint, venues };
   });
   if (errors.length) return { ok: false, errors };
-
   const poolUsers = pools.map((p) => out.filter((m) => m.venues.some((v) => v.legs.some((l) => l.pool === p.index))).map((m) => m.index));
   return {
     ok: true,
-    value: {
-      quote: { ...markets.quote },
-      markets: out,
-      pools,
-      poolUsers,
-      poolIndexByAddress,
-      marketIndexByMint: new Map(out.map((m) => [m.mint, m.index])),
-    },
+    value: { quote: { ...markets.quote }, markets: out, pools, poolUsers, poolIndexByAddress, marketIndexByMint: new Map(out.map((m) => [m.mint, m.index])) },
   };
+}
+
+/**
+ * Resolves one venue's pools against on-chain facts, in place: every pool must exist and be
+ * owned by the venue; every direct pool must pair the market mint with the quote mint; every
+ * route must chain market → X → quote. Fills mints, decimals and leg orientation and marks
+ * pools resolved. Observations that fail are left unresolved and reported.
+ * @spec ING-RPC-002, ING-RPC-004, RUN-CFG-004, RUN-CFG-005
+ */
+export function resolveVenue(model: MarketModel, venue: PoolVenue, facts: ReadonlyMap<string, PoolFacts>): ResolveError[] {
+  const errors: ResolveError[] = [];
+  const quote = model.quote.mint;
+  const factErrors = new Map<number, string>();
+  for (const p of model.pools) {
+    if (p.venue !== venue) continue;
+    const f = facts.get(p.address);
+    if (!f) factErrors.set(p.index, `pool ${p.address} was not found on-chain`);
+    else if (f.venue !== venue) factErrors.set(p.index, `pool ${p.address} is a ${f.venue} pool, configured under ${venue}`);
+  }
+  for (const [pool, message] of factErrors) errors.push({ pools: [pool], message });
+
+  for (const m of model.markets) {
+    for (const v of m.venues) {
+      if (v.venue !== venue) continue;
+      const where = `${m.symbol}/${venue}`;
+      if (v.legs.some((l) => factErrors.has(l.pool))) continue;
+      const invert: boolean[] = [];
+      let at = m.mint;
+      let failed: string | null = null;
+      for (let i = 0; i < v.legs.length && !failed; i++) {
+        const f = facts.get(model.pools[v.legs[i]!.pool]!.address)!;
+        if (f.mintA === at) {
+          invert.push(false);
+          at = f.mintB;
+        } else if (f.mintB === at) {
+          invert.push(true);
+          at = f.mintA;
+        } else {
+          failed = `${where}: pool ${f.address} (${f.mintA}/${f.mintB}) does not contain ${at}`;
+          break;
+        }
+        if (i < v.legs.length - 1 && (at === quote || at === m.mint)) failed = `${where}: route leg ${f.address} must lead to an intermediate mint, not ${at}`;
+      }
+      if (!failed && at !== quote) failed = `${where}: ${v.kind === 'pool' ? 'pool' : 'route'} ${v.legs.map((l) => model.pools[l.pool]!.address).join(' → ')} ends in ${at}, not the quote mint ${quote}`;
+      if (failed) {
+        errors.push({ pools: v.legs.map((l) => l.pool), message: failed });
+        continue;
+      }
+      v.legs.forEach((l, i) => {
+        l.invert = invert[i]!;
+        const f = facts.get(model.pools[l.pool]!.address)!;
+        Object.assign(model.pools[l.pool]!, { mintA: f.mintA, mintB: f.mintB, decimalsA: f.decimalsA, decimalsB: f.decimalsB, resolved: true });
+      });
+    }
+  }
+  return errors;
+}
+
+/**
+ * Skeleton plus resolution of every venue: the one-shot form used when all on-chain facts
+ * are already known. Returns every error found.
+ */
+export function buildModel(markets: MarketsFile, facts: ReadonlyMap<string, PoolFacts>): Result<MarketModel> {
+  const sk = buildSkeleton(markets);
+  if (!sk.ok) return sk;
+  const errors = (['orca', 'raydium'] as const).flatMap((v) => resolveVenue(sk.value, v, facts)).map((e) => e.message);
+  return errors.length ? { ok: false, errors } : sk;
 }

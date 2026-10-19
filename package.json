@@ -7,13 +7,15 @@
     "node": ">=24"
   },
   "scripts": {
-    "build": "pnpm -r build",
+    "build": "tsc -b",
     "build:native": "pnpm --filter @soltape/decoder build:native",
     "typecheck": "tsc -p tsconfig.test.json",
     "test": "vitest run",
     "test:unit": "vitest run --project unit",
     "test:watch": "vitest",
-    "test:rust": "cargo test --manifest-path packages/decoder/native/Cargo.toml --no-fail-fast"
+    "test:rust": "cargo test --manifest-path packages/decoder/native/Cargo.toml --no-fail-fast",
+    "start": "node apps/service/dist/main.js",
+    "dev": "pnpm build && node apps/service/dist/main.js"
   },
   "devDependencies": {
     "@types/node": "^24.19.2",

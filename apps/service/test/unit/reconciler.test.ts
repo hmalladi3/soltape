@@ -91,8 +91,8 @@ function setup() {
   return h;
 }
 
-const ORCA_SOL = 'orca:HJPjoWUrhoZzkNfRpHuieeFk9WcZWjwy6PBjZ81ngndJ';
-const RAY_SOL = 'raydium:2QdhepnKRTLjjSqPL1PtKNwqrUkoLee5Gqs8bvZhRdMv';
+const ORCA_SOL = 'orca:Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE';
+const RAY_SOL = 'raydium:3ucNos4NbumPLZNWztqGHNFFgkHeRMBQAVemeeomsUxv';
 
 describe('source liveness', () => {
   // @spec REC-LIVE-001
@@ -379,7 +379,7 @@ describe('normalization', () => {
     h.tick(500);
     h.pool(0, 100, { slot: 705, liq: 1e12 });
     const o = h.rec.observations(JUP)[0]!;
-    expect(o.source).toBe('orca:route(C1MgLojNLWBKADvu9BHdtgzz1oZX4dZ5zGdGcgvvW8Wz,HJPjoWUrhoZzkNfRpHuieeFk9WcZWjwy6PBjZ81ngndJ)');
+    expect(o.source).toBe('orca:route(C1MgLojNLWBKADvu9BHdtgzz1oZX4dZ5zGdGcgvvW8Wz,Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE)');
     expect(o.kind).toBe('route');
     expect(o.slot).toBe(700);
     expect(o.ageMs).toBe(500);

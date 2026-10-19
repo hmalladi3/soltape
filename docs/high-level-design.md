@@ -252,7 +252,7 @@ Jupiter is **optional**. Its API (`api.jup.ag`) requires a free key, and the key
 - **Live run:** the same measurements against mainnet, reported separately.
 - **README:** reports both, with machine specs and exact commands.
 
-**Why:** Live mainnet rates are too low and too uneven to stress the system. Replay makes the p99 reproducible and lets the load be pushed until it breaks, and the breaking point is the honest throughput number. Event-loop delay (`monitorEventLoopDelay`) is exported so a reader can see when the event loop itself becomes the bottleneck.
+**Why:** Live mainnet rates are too low and too uneven to stress the system, and the free public RPC also throttles account notifications (measured: a few per pool per 15 s, against per-slot trading). Live mode therefore shows correctness and resilience, and replay mode carries the latency claims. Replay makes the p99 reproducible and lets the load be pushed until it breaks, and the breaking point is the honest throughput number. Event-loop delay (`monitorEventLoopDelay`) is exported so a reader can see when the event loop itself becomes the bottleneck.
 
 ### KDD-12: Reviewable in five minutes, at zero hosting cost
 

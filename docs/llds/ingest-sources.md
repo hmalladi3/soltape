@@ -106,6 +106,14 @@ A pool with no notification for `REVALIDATE_AFTER_MS` (default 20 s) is re-read 
   3. Once all confirmations arrive, take a fresh `getMultipleAccounts` snapshot, subject to the slot ordering guard, then go `live`.
 - **During `down`:** the adapter emits `onSourceState(down)`. Its last observations remain in the reconciler but are ineligible while the source is down (see `reconciliation.md`).
 
+### HTTP connection pools
+
+Each HTTP client (RPC and Jupiter) owns an undici `Agent` with keep-alive, used with undici's own `fetch`. Mixing an npm undici `Agent` with Node's bundled global `fetch` fails at runtime, because the dispatcher interfaces differ between undici majors. Owning the pool keeps snapshot and revalidation latency low, since TLS is set up once, and lets shutdown close every socket (RUN-LIFE-012).
+
+### Public RPC behaviour (measured 2026-10-19)
+
+The free public endpoint (`api.mainnet-beta.solana.com`) delivers `slotSubscribe` at chain rate (about 4.4 notifications/s), but **throttles `accountSubscribe` notifications**. It delivered 6 notifications in 15 s for two pools that trade several times per second. The design copes as intended: the snapshot gives an immediate price, revalidation keeps quiet pools eligible, and liveness comes from the slot stream. Live mode on the public RPC therefore updates every few seconds, not every slot. For per-slot updates, point `RPC_WS_URL` at a dedicated endpoint. The published latency numbers come from replay mode, where the rate is controlled (see `replay-and-benchmark.md`).
+
 ### Rate-limit awareness
 
 The public mainnet RPC rate-limits by IP. Steady state makes no HTTP calls except revalidation, which is batched, at most once per 20 s per venue. On an HTTP 429, the adapter honours `Retry-After` if present, otherwise it backs off with the same jittered schedule.

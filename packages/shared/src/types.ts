@@ -9,7 +9,8 @@ export type AdapterState = 'disabled' | 'connecting' | 'live' | 'down';
 /** Source state as judged by the reconciler's registry. */
 export type SourceState = AdapterState | 'stale';
 
-/** All time is read through this seam (RUN-DI-004). */
+/** All time is read through this seam. */
+// @spec RUN-DI-004
 export interface Clock {
   /** Monotonic milliseconds (performance.now() in production). */
   mono(): number;

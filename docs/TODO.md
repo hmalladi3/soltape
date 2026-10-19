@@ -2,11 +2,11 @@
 
 ## In progress
 
-- Wave 1 complete; waiting on user review before wave 2 (ingest adapters)
+- Wave 3: API gateway (REST, WebSocket fan-out, live page) + real HTTP server in the composition root
 
 ## Up next
 
-- Wave 2: ingest adapters + composition root (RUN-DI-*, RUN-LIFE-*, RUN-ERR-* still have no tests) (fake RPC WS server, fake Jupiter); wave 3: API gateway + live page; wave 4: persistence (testcontainers); wave 5: telemetry; wave 6: replay + bench; wave 7: delivery (Docker, compose, CI)
+- Wave 4: persistence (testcontainers); wave 5: telemetry; wave 6: replay + bench; wave 7: delivery (Docker, compose, CI)
 - Record the first mainnet session fixture (`pnpm record`) once the recorder exists (wave 6)
 
 ## Waiting on the user
@@ -14,6 +14,8 @@
 
 ## Done
 
+- 2026-10-19: Wave 2 (ingest adapters, RPC HTTP client, two-phase market model, runtime lifecycle, Awilix composition root, main): 330 tests green; ING-* and RUN-* specs [x]; live mainnet smoke: all 5 markets priced 1.0 s after cold start, SOL spread 0.7 bps across venues
+- 2026-10-19: Fixed SOL/USDC pools (were low-TVL picks from memory): Orca Czfq3x… ($28.7M TVL), Raydium 3ucNos… ($7.6M TVL); fixtures refetched
 - 2026-10-19: Wave 1 (decoder, reconciliation, config, market model): 263 TS + 7 Rust tests green; DEC/REC/RUN-CFG/RUN-DEC specs marked [x]; informal decoder microbench on M4: native 1.09M frames/s p99.9 1.37us vs reference 279k/s p99.9 9.0us
 - 2026-10-19: Phase 4 resolutions approved
 - 2026-10-19: Workspace scaffolded (pnpm 10, TS 7, Vitest 5, napi-rs 3, Rust 1.99); pnpm installed globally via npm

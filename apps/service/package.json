@@ -9,6 +9,13 @@
   "dependencies": {
     "@soltape/decoder": "workspace:*",
     "@soltape/shared": "workspace:*",
+    "awilix": "^13.0.5",
+    "pino": "^10.4.0",
+    "undici": "^8.12.3",
+    "ws": "^8.22.0",
     "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.18.2"
   }
 }

@@ -18,16 +18,16 @@ describe('buildModel', () => {
     expect(m.pools.map((p) => p.index)).toEqual([...Array(10).keys()]);
     const sol = m.markets[0]!;
     expect(sol.venues.map((v) => [v.venue, v.kind, v.sourceId])).toEqual([
-      ['orca', 'pool', 'orca:HJPjoWUrhoZzkNfRpHuieeFk9WcZWjwy6PBjZ81ngndJ'],
-      ['raydium', 'pool', 'raydium:2QdhepnKRTLjjSqPL1PtKNwqrUkoLee5Gqs8bvZhRdMv'],
+      ['orca', 'pool', 'orca:Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE'],
+      ['raydium', 'pool', 'raydium:3ucNos4NbumPLZNWztqGHNFFgkHeRMBQAVemeeomsUxv'],
       ['jupiter', 'aggregator', 'jupiter'],
     ]);
-    const solOrcaPool = m.poolIndexByAddress.get('HJPjoWUrhoZzkNfRpHuieeFk9WcZWjwy6PBjZ81ngndJ')!;
+    const solOrcaPool = m.poolIndexByAddress.get('Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE')!;
     expect(sol.venues[0]!.legs).toEqual([{ pool: solOrcaPool, invert: false }]);
     // JUP/SOL has JUP as token A: not inverted. SOL/JTO has SOL as token A: inverted for JTO.
     const jup = m.markets[1]!;
     expect(jup.venues[0]!.legs.map((l) => l.invert)).toEqual([false, false]);
-    expect(jup.venues[0]!.sourceId).toBe('orca:route(C1MgLojNLWBKADvu9BHdtgzz1oZX4dZ5zGdGcgvvW8Wz,HJPjoWUrhoZzkNfRpHuieeFk9WcZWjwy6PBjZ81ngndJ)');
+    expect(jup.venues[0]!.sourceId).toBe('orca:route(C1MgLojNLWBKADvu9BHdtgzz1oZX4dZ5zGdGcgvvW8Wz,Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE)');
     const jto = m.markets[2]!;
     expect(jto.venues[0]!.legs.map((l) => l.invert)).toEqual([true, false]);
     // The SOL/USDC Whirlpool is used by every market's orca observation.
@@ -62,17 +62,17 @@ describe('buildModel', () => {
   // @spec RUN-CFG-005
   it('rejects a route whose legs belong to another venue', () => {
     const m = structuredClone(markets);
-    m.markets[1]!.venues.orca = { route: ['C1MgLojNLWBKADvu9BHdtgzz1oZX4dZ5zGdGcgvvW8Wz', '2QdhepnKRTLjjSqPL1PtKNwqrUkoLee5Gqs8bvZhRdMv'] }; // raydium SOL/USDC leg
+    m.markets[1]!.venues.orca = { route: ['C1MgLojNLWBKADvu9BHdtgzz1oZX4dZ5zGdGcgvvW8Wz', '3ucNos4NbumPLZNWztqGHNFFgkHeRMBQAVemeeomsUxv'] }; // raydium SOL/USDC leg
     const r = buildModel(m, factsMap());
     expect(r.ok).toBe(false);
     if (r.ok) return;
-    expect(r.errors.join('\n')).toMatch(/2QdhepnKRTLjjSqPL1PtKNwqrUkoLee5Gqs8bvZhRdMv/);
+    expect(r.errors.join('\n')).toMatch(/3ucNos4NbumPLZNWztqGHNFFgkHeRMBQAVemeeomsUxv/);
   });
 
   // @spec ING-RPC-002
   it('rejects a pool configured under a venue that does not own it', () => {
     const m = structuredClone(markets);
-    m.markets[0]!.venues.raydium = { pool: 'HJPjoWUrhoZzkNfRpHuieeFk9WcZWjwy6PBjZ81ngndJ' }; // an Orca pool
+    m.markets[0]!.venues.raydium = { pool: 'Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE' }; // an Orca pool
     expect(buildModel(m, factsMap()).ok).toBe(false);
   });
 

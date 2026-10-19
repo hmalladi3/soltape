@@ -64,6 +64,16 @@ This file declares what the feed tracks. It is committed, and the Docker image b
 
 - **Shape checks.** Every pool or route must be priced in the quote unit, either directly or through a declared route (see `reconciliation.md`). A route's legs must belong to the route's venue. Symbols and market mints must be unique. Mints and pools must be valid base58 32-byte keys.
 - **Cross-check against the chain.** Ingest checks that each pool's on-chain mints match the declared market. A mismatch is a startup error naming the pool. A typo in a pool address must never become a silently wrong price.
+- **Pool selection rule.** For each (market, venue), use the highest-TVL path to USDC: a direct X/USDC pool if it is the deepest, otherwise X/SOL × SOL/USDC. Candidates come from the venues' own pool APIs (Orca `api.orca.so/v2`, Raydium `api-v3.raydium.io`), and every choice is verified on-chain (owner, mints, layout size) before it is committed. The rule is applied mechanically and never from memory: the first SOL/USDC choices, made from memory, were $200k-TVL pools that barely trade, while the real SOL/USDC pools hold $7–29M.
+
+### Two-phase market model
+
+The market model is built in two steps, so the service can start before any RPC venue is reachable (RUN-LIFE-005):
+
+1. **Skeleton** (`buildSkeleton`), from config alone: dense pool and market indexes, observation definitions, and pool → market users. This is enough to construct the reconciler and serve Jupiter.
+2. **Per-venue resolution** (`resolveVenue`), once that venue's on-chain facts arrive: it fills mints, decimals, and leg orientation in place and marks pools `resolved`. Updates for a pool can only arrive after its venue is resolved, so the reconciler computes a pool's decimal scale lazily on its first update.
+
+`buildModel` (skeleton plus resolution of every venue) remains the one-shot form for tools and tests.
 
 ## Dependency Injection
 
@@ -95,7 +105,7 @@ Awilix container, `InjectionMode.PROXY`, with a single composition root at `apps
 3. Stop the source adapters, closing their sockets and clearing their timers.
 4. Close WebSocket clients with code `1001 Going Away`.
 5. Flush persistence with a 5 s deadline. Whatever remains unflushed is counted and logged.
-6. Close the Redis and Postgres clients, then exit 0.
+6. Close the Redis and Postgres clients, then the shared HTTP client pools (each HTTP client owns an undici `Agent`, so no keep-alive sockets linger). Then exit 0.
 
 A second signal during shutdown forces an immediate exit 1. Every timer and socket is owned by a component with a `stop()` method, so a clean shutdown leaves no open handles. Tests assert this.
 

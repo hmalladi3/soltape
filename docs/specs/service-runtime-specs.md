@@ -14,10 +14,10 @@ LLD: `docs/llds/service-runtime.md`
 
 ## Dependency Injection
 
-- [ ] **RUN-DI-001**: The system shall construct all stateful components as singletons through one Awilix composition root, with each component receiving its dependencies as constructor parameters.
-- [ ] **RUN-DI-002**: When the service starts, the system shall resolve every registered singleton before listening, so that a wiring error fails startup.
-- [ ] **RUN-DI-004**: The system shall read monotonic and wall-clock time only through the injected `Clock`.
-- [ ] **RUN-DI-003**: The system shall allow the `PriceSource`, `FrameDecoder`, `LatestStore`, `HistorySink`, and `Clock` registrations to be replaced in tests without modifying component code.
+- [x] **RUN-DI-001**: The system shall construct all stateful components as singletons through one Awilix composition root, with each component receiving its dependencies as constructor parameters.
+- [x] **RUN-DI-002**: When the service starts, the system shall resolve every registered singleton before listening, so that a wiring error fails startup.
+- [x] **RUN-DI-004**: The system shall read monotonic and wall-clock time only through the injected `Clock`.
+- [x] **RUN-DI-003**: The system shall allow the `PriceSource`, `FrameDecoder`, `LatestStore`, `HistorySink`, and `Clock` registrations to be replaced in tests without modifying component code.
 
 ## Decoder Selection
 
@@ -27,20 +27,20 @@ LLD: `docs/llds/service-runtime.md`
 
 ## Startup
 
-- [ ] **RUN-LIFE-001**: When the service starts, the system shall connect Redis and Postgres clients in the background without waiting on, or failing startup because of, their availability.
-- [ ] **RUN-LIFE-002**: When the service starts, the system shall attempt a warm restore from Redis with a 500 ms deadline before starting source adapters.
-- [ ] **RUN-LIFE-003**: When the service starts, the system shall begin listening for HTTP and WebSocket connections before starting source adapters, and shall report `starting` health status until startup completes.
-- [ ] **RUN-LIFE-004**: If an on-chain pool fails mint or owner validation during startup, then the system shall log the pool and the mismatch and exit with code 2.
-- [ ] **RUN-LIFE-005**: If a source adapter cannot reach its source during startup validation, then the system shall continue startup with that adapter in its reconnect loop while other adapters proceed.
-- [ ] **RUN-LIFE-006**: When every configured market has a consolidated price, or 15 seconds after the server began listening (whichever is first), the system shall end the `starting` health status.
+- [x] **RUN-LIFE-001**: When the service starts, the system shall connect Redis and Postgres clients in the background without waiting on, or failing startup because of, their availability.
+- [x] **RUN-LIFE-002**: When the service starts, the system shall attempt a warm restore from Redis with a 500 ms deadline before starting source adapters.
+- [x] **RUN-LIFE-003**: When the service starts, the system shall begin listening for HTTP and WebSocket connections before starting source adapters, and shall report `starting` health status until startup completes.
+- [x] **RUN-LIFE-004**: If an on-chain pool fails mint or owner validation during startup, then the system shall log the pool and the mismatch and exit with code 2.
+- [x] **RUN-LIFE-005**: If a source adapter cannot reach its source during startup validation, then the system shall continue startup with that adapter in its reconnect loop while other adapters proceed.
+- [x] **RUN-LIFE-006**: When every configured market has a consolidated price, or 15 seconds after the server began listening (whichever is first), the system shall end the `starting` health status.
 
 ## Shutdown
 
-- [ ] **RUN-LIFE-010**: When the service receives SIGTERM or SIGINT, the system shall report `stopping` health status, stop accepting new HTTP connections and WebSocket upgrades, stop the reconciler (REC-LIFE-001), stop all source adapters, close WebSocket clients with code 1001, flush persistence with a 5-second deadline, close datastore clients, and exit with code 0.
-- [ ] **RUN-LIFE-011**: If a second SIGTERM or SIGINT arrives while shutdown is in progress, then the system shall exit immediately with code 1.
-- [ ] **RUN-LIFE-012**: When shutdown completes, the system shall leave no open timers, sockets, or handles held by its components.
+- [x] **RUN-LIFE-010**: When the service receives SIGTERM or SIGINT, the system shall report `stopping` health status, stop accepting new HTTP connections and WebSocket upgrades, stop the reconciler (REC-LIFE-001), stop all source adapters, close WebSocket clients with code 1001, flush persistence with a 5-second deadline, close datastore clients, and exit with code 0.
+- [x] **RUN-LIFE-011**: If a second SIGTERM or SIGINT arrives while shutdown is in progress, then the system shall exit immediately with code 1.
+- [x] **RUN-LIFE-012**: When shutdown completes, the system shall leave no open timers, sockets, or handles held by its components.
 
 ## Process Error Policy
 
-- [ ] **RUN-ERR-001**: If an uncaught exception or unhandled promise rejection reaches the process, then the system shall log it at `fatal` level with its stack, attempt shutdown capped at 1 second, and exit with code 1.
-- [ ] **RUN-ERR-002**: The system shall represent expected failures from source data (malformed frames, failed requests, invalid values) as returned status values rather than thrown exceptions.
+- [x] **RUN-ERR-001**: If an uncaught exception or unhandled promise rejection reaches the process, then the system shall log it at `fatal` level with its stack, attempt shutdown capped at 1 second, and exit with code 1.
+- [x] **RUN-ERR-002**: The system shall represent expected failures from source data (malformed frames, failed requests, invalid values) as returned status values rather than thrown exceptions.

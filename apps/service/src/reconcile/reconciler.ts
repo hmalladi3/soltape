@@ -246,6 +246,8 @@ export class Reconciler implements SourceSink {
       this.pRecv[pool] = recvTs;
       this.pWall[pool] = recvWall;
     } else {
+      // Decimals are known once the pool is resolved, which precedes its first update.
+      if (this.pSeen[pool] !== 1) this.pScale[pool] = 10 ** (this.model.pools[pool]!.decimalsA - this.model.pools[pool]!.decimalsB);
       this.pSqrt[pool] = sqrtRatio;
       this.pLiq[pool] = liquidity;
       this.pTick[pool] = tick;

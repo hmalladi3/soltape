@@ -57,11 +57,11 @@ describe('markets file', () => {
   // @spec RUN-CFG-004
   it.each([
     ['venue with neither pool nor route', (m: MarketsFile) => ((m.markets[0]!.venues as Record<string, unknown>).orca = {})],
-    ['venue with both pool and route', (m: MarketsFile) => ((m.markets[0]!.venues as Record<string, unknown>).orca = { pool: markets.markets[0]!.venues.raydium && 'HJPjoWUrhoZzkNfRpHuieeFk9WcZWjwy6PBjZ81ngndJ', route: ['HJPjoWUrhoZzkNfRpHuieeFk9WcZWjwy6PBjZ81ngndJ', '2QdhepnKRTLjjSqPL1PtKNwqrUkoLee5Gqs8bvZhRdMv'] })],
+    ['venue with both pool and route', (m: MarketsFile) => ((m.markets[0]!.venues as Record<string, unknown>).orca = { pool: markets.markets[0]!.venues.raydium && 'Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE', route: ['Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE', '3ucNos4NbumPLZNWztqGHNFFgkHeRMBQAVemeeomsUxv'] })],
     ['route with one leg', (m: MarketsFile) => ((m.markets[1]!.venues as Record<string, unknown>).orca = { route: ['C1MgLojNLWBKADvu9BHdtgzz1oZX4dZ5zGdGcgvvW8Wz'] })],
-    ['route with three legs', (m: MarketsFile) => ((m.markets[1]!.venues as Record<string, unknown>).orca = { route: ['C1MgLojNLWBKADvu9BHdtgzz1oZX4dZ5zGdGcgvvW8Wz', 'HJPjoWUrhoZzkNfRpHuieeFk9WcZWjwy6PBjZ81ngndJ', 'HJPjoWUrhoZzkNfRpHuieeFk9WcZWjwy6PBjZ81ngndJ'] })],
+    ['route with three legs', (m: MarketsFile) => ((m.markets[1]!.venues as Record<string, unknown>).orca = { route: ['C1MgLojNLWBKADvu9BHdtgzz1oZX4dZ5zGdGcgvvW8Wz', 'Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE', 'Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE'] })],
     ['jupiter with options', (m: MarketsFile) => ((m.markets[0]!.venues as Record<string, unknown>).jupiter = { x: 1 })],
-    ['unknown venue', (m: MarketsFile) => ((m.markets[0]!.venues as Record<string, unknown>).phoenix = { pool: 'HJPjoWUrhoZzkNfRpHuieeFk9WcZWjwy6PBjZ81ngndJ' })],
+    ['unknown venue', (m: MarketsFile) => ((m.markets[0]!.venues as Record<string, unknown>).phoenix = { pool: 'Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE' })],
     ['market with no venues', (m: MarketsFile) => (m.markets[0]!.venues = {})],
   ])('rejects a %s', (_label, mutate) => {
     const m = clone();
@@ -85,7 +85,7 @@ describe('markets file', () => {
   it.each([
     ['too short', '11111'],
     ['invalid character 0', 'So1111111111111111111111111111111111111111O'],
-    ['33 bytes', '2QdhepnKRTLjjSqPL1PtKNwqrUkoLee5Gqs8bvZhRdMvzz'],
+    ['33 bytes', '3ucNos4NbumPLZNWztqGHNFFgkHeRMBQAVemeeomsUxvzz'],
   ])('rejects a pool address that is %s', (_label, addr) => {
     const m = clone();
     m.markets[0]!.venues.orca = { pool: addr };
@@ -96,8 +96,8 @@ describe('markets file', () => {
   it('validates base58 32-byte keys', () => {
     expect(isPubkey('So11111111111111111111111111111111111111112')).toBe(true);
     expect(isPubkey('11111111111111111111111111111111')).toBe(true);
-    expect(isPubkey('HJPjoWUrhoZzkNfRpHuieeFk9WcZWjwy6PBjZ81ngndJ')).toBe(true);
-    expect(isPubkey('HJPjoWUrhoZzkNfRpHuieeFk9WcZWjwy6PBjZ81ngndJ'.slice(0, 41))).toBe(false); // 30 bytes
+    expect(isPubkey('Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE')).toBe(true);
+    expect(isPubkey('Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE'.slice(0, 41))).toBe(false); // 30 bytes
     expect(isPubkey('0JPjoWUrhoZzkNfRpHuieeFk9WcZWjwy6PBjZ81ngndJ')).toBe(false);
     expect(isPubkey('')).toBe(false);
   });
