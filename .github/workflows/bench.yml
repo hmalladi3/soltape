@@ -1,0 +1,60 @@
+# Full benchmark matrix on a GitHub-hosted Linux runner (on demand). Results go to the job
+# summary and an artifact; the README's headline table is taken from here.
+name: bench
+
+on:
+  workflow_dispatch:
+    inputs:
+      rates:
+        description: Updates per second (comma-separated)
+        default: '1000,5000,10000,20000,50000'
+      subscribers:
+        description: WebSocket subscribers (comma-separated)
+        default: '1,100,1000'
+      persistence:
+        description: Run Redis and Postgres alongside (production-like)
+        type: boolean
+        default: true
+
+jobs:
+  bench:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    services:
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: soltape
+          POSTGRES_PASSWORD: soltape
+          POSTGRES_DB: soltape
+        ports: ['5432:5432']
+        options: --health-cmd "pg_isready -U soltape" --health-interval 5s
+    env:
+      REDIS_URL: ${{ inputs.persistence && 'redis://127.0.0.1:6379' || 'redis://127.0.0.1:1' }}
+      DATABASE_URL: ${{ inputs.persistence && 'postgres://soltape:soltape@127.0.0.1:5432/soltape' || 'postgres://u:p@127.0.0.1:1/none' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: '1.99.0'
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: packages/decoder/native
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @soltape/decoder build:native
+      - run: pnpm build
+      - run: node bench/dist/decoder.js --summary
+      - run: node bench/dist/run.js --rates "${{ inputs.rates }}" --subscribers "${{ inputs.subscribers }}" --summary --out bench/results
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bench-full
+          path: bench/results

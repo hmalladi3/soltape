@@ -44,7 +44,7 @@ export function machineSpec(): MachineSpec {
   };
 }
 
-const us = (v: number) => (v >= 1000 ? `${(v / 1000).toFixed(2)} ms` : `${Math.round(v)} µs`);
+const us = (v: number) => (!Number.isFinite(v) ? 'collapsed' : v >= 1000 ? `${(v / 1000).toFixed(2)} ms` : `${Math.round(v)} µs`);
 
 /** Markdown report: machine spec, one row per cell, and the knee per subscriber count. */
 export function renderMarkdown(cells: CellResult[], m: MachineSpec, meta: { durationS: number; warmupS: number; benchMarkets: number }): string {

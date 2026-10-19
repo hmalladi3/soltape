@@ -120,21 +120,32 @@ export async function runBench(o: BenchOptions): Promise<{ cells: CellResult[]; 
       (o.warmupS + o.durationS) * 1000 + 30_000,
     );
     await sleep(500);
-    const results = await Promise.all(
-      clients.map((c) => {
-        const r = once<{ sockets: SocketReceipts[] }>(c, 'result');
-        c.send({ type: 'stop' });
-        return r;
-      }),
-    );
+    // Clients buried under a backlog may never report; a cell that cannot be measured in time
+    // is recorded as collapsed instead of wedging the run.
+    let collectTimer: NodeJS.Timeout | undefined;
+    const results = await Promise.race([
+      Promise.all(
+        clients.map((c) => {
+          const r = once<{ sockets: SocketReceipts[] }>(c, 'result');
+          c.send({ type: 'stop' });
+          return r;
+        }),
+      ),
+      new Promise<null>((r) => (collectTimer = setTimeout(() => r(null), COLLECT_TIMEOUT_MS))),
+    ]);
+    clearTimeout(collectTimer);
+    if (results === null) for (const c of clients) c.kill('SIGKILL');
     const after = await (await fetch(`${serviceUrl}/metrics`)).text();
     const stats = (await (await fetch(`${serviceUrl}/stats`)).json()) as { latencyUs: { p50: number; p99: number; p999: number } };
     const logRes = await fetch(`${replayUrl}/control/sendlog`);
     const log = parseSendLog(await logRes.arrayBuffer(), logRes.headers);
-    const e2e = joinLatencies(
-      log,
-      results.flatMap((r) => r.sockets),
-    );
+    const e2e =
+      results === null
+        ? collapsed(log)
+        : joinLatencies(
+            log,
+            results.flatMap((r) => r.sockets),
+          );
     return {
       rate,
       subscribers,
@@ -147,6 +158,22 @@ export async function runBench(o: BenchOptions): Promise<{ cells: CellResult[]; 
       persistence,
     };
   }
+}
+
+const COLLECT_TIMEOUT_MS = 60_000;
+
+/** A cell whose clients could not report: every measured input counts as not delivered. */
+function collapsed(log: { intendedNs: Float64Array; warmupMs: number }) {
+  const measured = Array.from(log.intendedNs).filter((t) => t >= log.warmupMs * 1e6).length;
+  return {
+    p50: Number.POSITIVE_INFINITY,
+    p99: Number.POSITIVE_INFINITY,
+    p999: Number.POSITIVE_INFINITY,
+    max: Number.POSITIVE_INFINITY,
+    samples: 0,
+    conflationRatio: 1,
+    measuredInputs: measured,
+  };
 }
 
 function splitEvenly(n: number, k: number): number[] {

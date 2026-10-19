@@ -9,3 +9,4 @@ coverage/
 packages/decoder/native/target/
 bench/results/*
 !bench/results/.gitkeep
+*.tsbuildinfo
