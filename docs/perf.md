@@ -41,4 +41,25 @@ At 100k sends/s, that works out to roughly 15–20 µs per `ws.send` on that CPU
 
 **Bug caught by the measurement:** the first B run showed 13 ns per write, which is physically impossible. Delivery counts showed the clients receiving nothing. Subscribe-time snapshots went through the same write path unframed, the raw JSON corrupted the WebSocket stream, and the clients disconnected. Fixed (every frame that reaches `enqueue` comes from `frameOnce`). The benchmark now prints delivered/expected for every variant, so a variant that does no work can't look fast.
 
-**Runner confirmation:** pending (CI job summary of the next push).
+**Runner confirmation** (GitHub `ubuntu-24.04`, AMD EPYC 9V74, commit `7455106`, same-session microbenchmark):
+
+| Variant | 1 update/turn | 10 updates/turn |
+|---|---:|---:|
+| A: baseline | 1123 | 679 |
+| A′: A/A | 1137 (+1%) | 764 (+12%) |
+| B: frame once | 1112 (−1%) | 613 (−10%) |
+| C: frame once + cork/turn | 803 (−28%) | **134 (−80%)** |
+
+The noise floor on shared runners is wide: the A/A pair differed by up to 12%. On the runner, B alone is within noise. C is far outside it in both regimes, and it is the change that matters.
+
+**End-to-end on the runner, before and after (quick matrix):**
+
+| Cell | Before (`b4db481`) | After (`7455106`) |
+|---|---|---|
+| 1k/s × 100 subs | e2e p50 2.73 s, p99 7.59 s, 50% conflated, event loop 761 ms | e2e p50 482 µs, p99 1.19 ms, 0% conflated, event loop 0.41 ms |
+| 10k/s × 100 subs | collapsed (100% conflated, event loop 2.6 s) | e2e p50 1.60 ms, p99 13.8 ms, 0% conflated, event loop 2.7 ms |
+| 1k/s × 1 sub | p50 155 µs, p99 369 µs | p50 124 µs, p99 388 µs (unchanged within noise) |
+
+**Stopping point for this iteration:** the 100-subscriber cells now deliver everything. At 10k × 100 the service uses about 92% of a core, so the next ceiling is the single event loop itself, not per-send overhead. The CI regression gate is re-armed with these numbers (`bench/baseline.json`).
+
+**Next candidates (not started):** shard WebSocket subscribers across worker processes (`SO_REUSEPORT`) to use more than one core; a binary encoding to shrink the 400-byte frames. Both are design changes and would walk the arrow (LLD → EARS) first.

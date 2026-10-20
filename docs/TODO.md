@@ -2,13 +2,10 @@
 
 ## In progress
 
-- First push to github.com/hmalladi3/soltape; watch CI; fix runner-specific failures; then mark DLV-* [x]
-- Fill README latency section from the CI bench job (GitHub-hosted Linux runner)
 
 ## Up next
 
-- Phase 7 iteration 1 (fan-out: frame once + cork per turn) accepted on M4 A/B; confirm on the runner via the CI job summary, then re-run the quick matrix and update bench/baseline.json gates
-- Phase 7 next: (1) [superseded by iteration 1] fan-out collapse at 10k updates/s × 100 subscribers (event loop 591 ms, conflation 65%): per-message ws.send to every subscriber = 1M sends/s; candidate: coalesce each client's pending updates into one frame per tick (protocol change: walk the arrow first); (2) live-frame fan-out of one SOL/USDC update to 5 markets; (3) measure noise floor (A/A) before accepting anything
+- Phase 7 next (design changes; walk the arrow first): shard WebSocket subscribers across processes to pass the single-core ceiling (~92% of a core at 10k updates/s × 100 subs on a 4-vCPU runner); optional binary frame encoding; run the full matrix via the `bench` workflow (Actions → bench) for a complete table
 
 ## Waiting on the user
 
@@ -16,6 +13,7 @@
 
 ## Done
 
+- 2026-10-20: Phase 7 iteration 1: fan-out frame-once + cork-per-turn; runner: 1k/s × 100 subs went from collapse (p50 2.7 s) to p50 482 µs / p99 1.19 ms with 0% conflation; CI gate re-armed; README latency section filled from the runner; DLV-* [x]; CI green on github.com/hmalladi3/soltape (image published to GHCR)
 - 2026-10-19: Wave 7 (ESLint strict-type-checked + Prettier, TS 6 for typescript-eslint, Dockerfile, compose live/replay/bench, compose smoke script verified locally, CI + image workflows, cargo-fuzz targets run clean locally, README, delivery tests): 444 unit tests; coherence clean across all 267 active specs. Local Linux-VM bench (Docker Desktop, persistence up) showed heavy tails; headline numbers moved to GitHub Actions
 - 2026-10-19: Wave 6 (recorder with SDK verification, replay server realtime/rate/faults, synthetic bench markets, benchmark orchestrator + load clients + HDR join, decoder microbench): 421 unit tests; RPL-* [x]; first mainnet fixture recorded (414 verified frames); first quick bench on M4: 1 sub no knee to 10k/s (e2e p50 38 µs, internal p99 16 µs), 100 subs knee at 10k/s; fixed event-loop metric (default included the sampling interval)
 - 2026-10-19: Wave 5 (Prometheus metric set with scrape-time counters and gauges, stage histograms, HTTP metrics, rate-limited logs, component on every line, structured config errors): 392 unit tests; OBS-* specs [x]

@@ -1,7 +1,7 @@
 {
-  "_comment": "CI budget for the quick matrix: e2e p99 in microseconds per 'rate x subscribers'. Healthy single-subscriber cells are gated (floor 1000 us; runners are noisier than a laptop). The 100-subscriber cells are the known fan-out knee on a 4-vCPU runner (Phase 7) and are not gated until it is fixed.",
+  "_comment": "CI budget for the quick matrix: e2e p99 in microseconds per 'rate x subscribers', from the GitHub runner run of commit 7455106 (after Phase 7 iteration 1), floored at 1000 us. CI fails above 5x these values: runners are shared and noisy (A/A spread up to ~12%), but a 5x regression is real.",
   "1000x1": 1000,
-  "10000x1": 1000,
-  "1000x100": null,
-  "10000x100": null
+  "10000x1": 1722,
+  "1000x100": 1186,
+  "10000x100": 13839
 }

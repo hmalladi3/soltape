@@ -256,7 +256,7 @@ describe('Postgres history: schema and partitions', () => {
 
   // @spec PER-PG-006
   it('serializes concurrent maintenance with the advisory lock', async () => {
-    const { h } = history();
+    const { h, clock } = history();
     h.start();
     await waitFor(() => h.state() === 'up', 10_000);
     const c1 = await admin.connect();
@@ -270,7 +270,8 @@ describe('Postgres history: schema and partitions', () => {
             )
           ).rows[0].s,
       );
-      const [a, b] = await Promise.all([maintainPartitions(c1, Date.now(), 7), maintainPartitions(c2, Date.now(), 7)]);
+      // Same clock as the sink: real Date.now() can be a different UTC day from the fake clock.
+      const [a, b] = await Promise.all([maintainPartitions(c1, clock.wall(), 7), maintainPartitions(c2, clock.wall(), 7)]);
       expect(a.created.length + b.created.length).toBe(3);
     } finally {
       c1.release();
@@ -283,12 +284,13 @@ describe('Postgres history: writer and reader', () => {
   // @spec PER-PG-010, PER-PG-011, PER-PG-012
   it('writes observations and consolidated rows in batches', async () => {
     const p = priced();
-    const { h } = history();
+    const { h, clock } = history();
     h.start();
     await waitFor(() => h.state() === 'up', 10_000);
     for (const o of p.rec.observations(0)) h.onObservation(0, 0, o);
-    for (let i = 0; i < 1500; i++) h.onConsolidated(0, consolidatedAt(Date.now() + i, 100 + i / 1000));
+    for (let i = 0; i < 1500; i++) h.onConsolidated(0, consolidatedAt(clock.wall() + i, 100 + i / 1000));
     await waitFor(async () => (await admin.query('SELECT count(*)::int n FROM consolidated')).rows[0].n === 1500, 5000);
+    expect((await admin.query('SELECT count(*)::int n FROM consolidated_default')).rows[0].n).toBe(0); // all landed in daily partitions
     expect((await admin.query('SELECT count(*)::int n FROM observations')).rows[0].n).toBe(2); // jupiter has no price
     expect(h.stats.written.pg_consolidated).toBe(1500);
   });

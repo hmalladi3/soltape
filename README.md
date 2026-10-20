@@ -74,7 +74,25 @@ A dropped venue is excluded immediately (`source_down`), a silent one within abo
 ## Latency
 
 <!-- RESULTS:START -->
-_Results pending._
+Measured on a GitHub-hosted runner (`ubuntu-24.04`, 4 vCPU AMD EPYC 9V74, Node 24), where the replay server, the service and the load-client processes all share the machine; commit `7455106`. Replay of real recorded frames, 3 s warmup then 10 s measured per cell, no Redis/Postgres.
+
+| Load | Subscribers | e2e p50 | e2e p99 | internal p50 | internal p99 | conflated | service CPU |
+|---:|---:|---:|---:|---:|---:|---:|---:|
+| 1,000 updates/s | 1 | 124 µs | 388 µs | 24 µs | 79 µs | 0% | 12% |
+| 10,000 updates/s | 1 | 78 µs | 1.72 ms | 16 µs | 36 µs | 0% | 55% |
+| 1,000 updates/s | 100 | 482 µs | 1.19 ms | 46 µs | 105 µs | 0% | 83% |
+| 10,000 updates/s | 100 | 1.60 ms | 13.8 ms | 17 µs | 58 µs | 0% | 92% |
+
+*Internal* is frame receipt to the last WebSocket write inside the service. *End-to-end* adds the replay server's socket, kernel scheduling of the three processes on 4 vCPUs, and the client's receive, measured from the frame's *intended* send time. The 10k × 100 cell is 1M messages/s delivered with nothing conflated; its tail is the shared 4-vCPU machine, with the service at 92% of a core.
+
+**Frame decoder** (same runner, real mainnet frames, latency under GC pressure):
+
+| Decoder | Frames/s | p50 | p99 | p99.9 |
+|---|---:|---:|---:|---:|
+| Rust (napi-rs) | 650,800 | 1.87 µs | 3.38 µs | 8.80 µs |
+| TypeScript reference | 149,800 | 7.45 µs | 13.65 µs | 38.98 µs |
+
+**WebSocket fan-out** went from collapsing to healthy at 100 subscribers after framing each update once and corking sockets per event-loop turn (−80% CPU per update when updates share a turn; details and the A/A noise floor in [`docs/perf.md`](docs/perf.md)).
 <!-- RESULTS:END -->
 
 Every push runs a reduced benchmark on a GitHub-hosted runner and publishes it in the [CI job summary](https://github.com/hmalladi3/soltape/actions/workflows/ci.yml). Shared runners are noisy, so those numbers are a regression signal (the job fails above 5× a committed baseline), not the headline.
@@ -125,7 +143,7 @@ Markets live in [`config/markets.json`](config/markets.json): SOL, JUP, JTO, BON
 ## Known limits
 
 - **The free public RPC throttles account notifications.** Measured: a handful per pool per 15 s for pools that trade several times a second. Live mode on it updates every few seconds; slot streams, snapshots and re-reads keep it correct. The latency numbers come from replay.
-- **Fan-out is the current knee.** With 100 subscribers at 10,000 updates/s the service spends its time in per-message WebSocket sends (one million per second) and conflation takes over. Coalescing each client's updates into one frame per tick is the next optimization.
+- **The single event loop is the ceiling.** At 10,000 updates/s × 100 subscribers (1M messages/s) the service runs at about 92% of a core on a 4-vCPU runner. Beyond that, conflation takes over: clients still converge on the latest price, but intermediate updates are skipped. Scaling past one core means sharding subscribers across processes.
 - `processed` commitment by default: fastest, and very rarely reflects a slot that is later skipped. This is a market-data feed, not an oracle.
 
 ## Development
