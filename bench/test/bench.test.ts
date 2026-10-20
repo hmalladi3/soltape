@@ -22,6 +22,7 @@ const cell = (rate: number, subscribers: number, p99: number, conflation = 0, lo
   eventLoopP99Ms: loop,
   rssMb: 100,
   gcPauseMs: 1,
+  serviceCpuPct: 50,
   persistDrops: 0,
   persistence: 'redis up, postgres up',
 });
@@ -46,6 +47,14 @@ describe('benchmark analysis', () => {
     const r = joinLatencies(l, [{ baseNs: l.t0Ns.toString(), slots: l.slots, recvNs }]);
     expect(r.max).toBeGreaterThanOrEqual(99_000);
     expect(r.p99).toBeGreaterThan(50_000);
+  });
+
+  // @spec RPL-BEN-004
+  it('reports a cell where nothing was delivered as collapsed, not zero latency', () => {
+    const l = log(100, 1_000_000);
+    const r = joinLatencies(l, [{ baseNs: l.t0Ns.toString(), slots: new Float64Array(0), recvNs: new Float64Array(0) }]);
+    expect(r.p99).toBe(Number.POSITIVE_INFINITY);
+    expect(r.conflationRatio).toBe(1);
   });
 
   // @spec RPL-BEN-004

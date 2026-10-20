@@ -7,7 +7,8 @@
 
 ## Up next
 
-- Phase 7 (after wave 7, on Linux): (1) fan-out collapse at 10k updates/s × 100 subscribers (event loop 591 ms, conflation 65%): per-message ws.send to every subscriber = 1M sends/s; candidate: coalesce each client's pending updates into one frame per tick (protocol change: walk the arrow first); (2) live-frame fan-out of one SOL/USDC update to 5 markets; (3) measure noise floor (A/A) before accepting anything
+- Phase 7 iteration 1 (fan-out: frame once + cork per turn) accepted on M4 A/B; confirm on the runner via the CI job summary, then re-run the quick matrix and update bench/baseline.json gates
+- Phase 7 next: (1) [superseded by iteration 1] fan-out collapse at 10k updates/s × 100 subscribers (event loop 591 ms, conflation 65%): per-message ws.send to every subscriber = 1M sends/s; candidate: coalesce each client's pending updates into one frame per tick (protocol change: walk the arrow first); (2) live-frame fan-out of one SOL/USDC update to 5 markets; (3) measure noise floor (A/A) before accepting anything
 
 ## Waiting on the user
 

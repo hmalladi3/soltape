@@ -24,7 +24,8 @@
     "bench:decoder": "pnpm build && node bench/dist/decoder.js",
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",
-    "smoke": "./scripts/compose-smoke.sh"
+    "smoke": "./scripts/compose-smoke.sh",
+    "bench:fanout": "pnpm build && node bench/dist/fanout.js"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

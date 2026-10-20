@@ -9,6 +9,7 @@
   "dependencies": {
     "@soltape/decoder": "workspace:*",
     "@soltape/replay": "workspace:*",
+    "@soltape/service": "workspace:*",
     "@soltape/shared": "workspace:*",
     "hdr-histogram-js": "^3.0.1",
     "ws": "^8.22.0"

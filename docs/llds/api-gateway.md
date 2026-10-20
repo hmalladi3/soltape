@@ -171,10 +171,16 @@ All messages are JSON text frames, with `permessage-deflate` disabled.
 
 **Why poll `bufferedAmount`:** `ws` doesn't emit a per-socket drain event. A 10 ms timer that only visits congested clients costs nothing when clients are healthy, and with one slot per market, pending memory per client is bounded by `markets × ~400 B`.
 
+**Frame once, write raw, cork per turn** (see `docs/perf.md`, iteration 1):
+- Server-to-client frames are unmasked, so every subscriber receives byte-identical bytes. Each update is framed once (`Sender.frame`), and the same buffer is written straight to each client's socket.
+- Every socket touched in an event-loop turn is corked, and all are uncorked together in `setImmediate`. N updates handled in one turn then reach each client in one system call, still as N separate WebSocket frames.
+- Measured: −27% CPU per update one-at-a-time, −80% when 10 updates share a turn.
+- Both are options (`preframe`, `corkPerTick`, default on), so the fan-out benchmark can A/B them.
+
 **Implementation notes:**
 - **Congestion is sticky until the low-water mark.** Once a client is congested, every update (price or `unavailable`) goes to its pending slot until `bufferedAmount` falls to the low-water mark. Sending directly while older frames are pending would deliver one market's updates out of order.
 - **Control replies bypass conflation.** `subscribed`, `error`, and `pong` are never conflated, because they are answers rather than market data.
-- **Text frames.** The shared `Buffer` is sent with `{ binary: false }`, so clients receive text frames.
+- **Text frames.** Frames are built with the text opcode, so clients receive text frames.
 - **Kernel buffers absorb a burst first.** The server only sees congestion once the kernel's socket buffer (several MB on localhost) is full. A consumer that stops reading is therefore detected under a continuous feed, not from a single burst. The tests reproduce exactly that.
 
 Memory bound: per client, at most `WS_HIGH_WATER + markets × frameSize`. With 1,000 clients that is about 256 MiB in the worst case, at which point clients are disconnected. The bound is stated in the README.

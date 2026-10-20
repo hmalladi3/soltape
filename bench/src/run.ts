@@ -112,6 +112,7 @@ export async function runBench(o: BenchOptions): Promise<{ cells: CellResult[]; 
     await Promise.all(clients.map((c) => once(c, 'ready')));
     await sleep(300);
     const before = await (await fetch(`${serviceUrl}/metrics`)).text();
+    const cellStart = performance.now();
     for (const c of clients) c.send({ type: 'record' });
     const start = await fetch(`${replayUrl}/control`, { method: 'POST', body: JSON.stringify({ op: 'rate', rate, durationMs: o.durationS * 1000, warmupMs: o.warmupS * 1000 }) });
     if (start.status !== 202) throw new Error(`replay refused the run: ${await start.text()}`);
@@ -153,7 +154,10 @@ export async function runBench(o: BenchOptions): Promise<{ cells: CellResult[]; 
       internal: stats.latencyUs,
       eventLoopP99Ms: promValue(after, 'soltape_eventloop_delay_p99_seconds') * 1000,
       rssMb: promValue(after, 'process_resident_memory_bytes') / 2 ** 20,
-      gcPauseMs: (promValue(after, 'nodejs_gc_duration_seconds_sum') - promValue(before, 'nodejs_gc_duration_seconds_sum')) * 1000,
+      gcPauseMs: ((promValue(after, 'nodejs_gc_duration_seconds_sum') || 0) - (promValue(before, 'nodejs_gc_duration_seconds_sum') || 0)) * 1000,
+      serviceCpuPct:
+        (((promValue(after, 'process_cpu_seconds_total') || 0) - (promValue(before, 'process_cpu_seconds_total') || 0)) / Math.max(1, (performance.now() - cellStart) / 1000)) *
+        100,
       persistDrops: (promValue(after, 'soltape_persist_dropped_total') || 0) - (promValue(before, 'soltape_persist_dropped_total') || 0),
       persistence,
     };

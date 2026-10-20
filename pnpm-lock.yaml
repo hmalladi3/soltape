@@ -151,6 +151,9 @@ importers:
       '@soltape/replay':
         specifier: workspace:*
         version: link:../apps/replay
+      '@soltape/service':
+        specifier: workspace:*
+        version: link:../apps/service
       '@soltape/shared':
         specifier: workspace:*
         version: link:../packages/shared

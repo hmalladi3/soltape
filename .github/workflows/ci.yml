@@ -153,6 +153,8 @@ jobs:
           path: packages/decoder/native
       - run: pnpm build
       - run: node bench/dist/decoder.js --summary
+      - run: node bench/dist/fanout.js 100 300 1 --summary
+      - run: node bench/dist/fanout.js 100 300 10 --summary
       - run: node bench/dist/run.js --quick --summary --out bench/results
       - run: node bench/dist/regress.js "$(ls bench/results/*.json | head -1)" bench/baseline.json
       - if: always()

@@ -1,5 +1,12 @@
 import type { Clock } from '@soltape/shared';
+import type { Socket } from 'node:net';
+import * as wsModule from 'ws';
 import type { RawData, WebSocket } from 'ws';
+
+/** ws exports its frame builder at runtime; @types/ws does not declare it. */
+const { Sender } = wsModule as unknown as {
+  Sender: { frame(data: Buffer, options: { fin: boolean; opcode: number; mask: boolean; readOnly: boolean; rsv1: boolean }): Buffer[] };
+};
 import type { MarketModel } from '../markets/model.js';
 import type { Consolidated, ConsolidatedListener, EmitStamps } from '../reconcile/types.js';
 import { noTelemetry, type TelemetryHooks } from '../telemetry/hooks.js';
@@ -16,6 +23,10 @@ export interface GatewayOptions {
   maxSubscriptions: number;
   maxStrikes: number;
   heartbeatMs: number;
+  /** Frame each update once and write the same bytes to every socket (see `frameOnce`). */
+  preframe: boolean;
+  /** Cork each touched socket and uncork once per event-loop turn (see `write`). */
+  corkPerTick: boolean;
 }
 
 export const DEFAULT_GATEWAY_OPTIONS: GatewayOptions = {
@@ -26,6 +37,8 @@ export const DEFAULT_GATEWAY_OPTIONS: GatewayOptions = {
   maxSubscriptions: 100,
   maxStrikes: 10,
   heartbeatMs: 30_000,
+  preframe: true,
+  corkPerTick: true,
 };
 
 /** Market data source for snapshots on subscribe. */
@@ -71,6 +84,9 @@ export class WsGateway implements ConsolidatedListener {
   /** Subscribers per market (index = market). */
   private readonly subscribers: Client[][];
   private readonly congested = new Set<Client>();
+  /** Sockets corked during the current event-loop turn, uncorked together in `uncorkAll`. */
+  private readonly corked = new Set<Socket>();
+  private uncorkScheduled = false;
   private drainTimer: NodeJS.Timeout | undefined;
   private heartbeatTimer: NodeJS.Timeout | undefined;
   private readonly log: Logger;
@@ -182,8 +198,8 @@ export class WsGateway implements ConsolidatedListener {
     if (overLimit) this.sendNow(c, json({ type: 'error', code: 'TOO_MANY_SUBSCRIPTIONS', message: `at most ${this.o.maxSubscriptions} mints per connection` }));
     for (const m of added) {
       const snap = this.d.source.consolidated(m);
-      if (this.d.source.available(m) && snap) this.enqueue(c, m, json({ type: 'snapshot', data: restConsolidated(snap), trigger: snap.trigger }));
-      else this.enqueue(c, m, json({ type: 'unavailable', mint: this.d.model.markets[m]!.mint, lastKnown: snap ? restConsolidated(snap) : null }));
+      if (this.d.source.available(m) && snap) this.enqueue(c, m, this.frameOnce(json({ type: 'snapshot', data: restConsolidated(snap), trigger: snap.trigger })));
+      else this.enqueue(c, m, this.frameOnce(json({ type: 'unavailable', mint: this.d.model.markets[m]!.mint, lastKnown: snap ? restConsolidated(snap) : null })));
     }
   }
 
@@ -246,7 +262,7 @@ export class WsGateway implements ConsolidatedListener {
   onConsolidated(market: number, c: Consolidated, stamps: EmitStamps): void {
     const subs = this.subscribers[market]!;
     if (subs.length > 0) {
-      const frame = Buffer.from(JSON.stringify({ type: 'price', data: restConsolidated(c), trigger: c.trigger }));
+      const frame = this.frameOnce(Buffer.from(JSON.stringify({ type: 'price', data: restConsolidated(c), trigger: c.trigger })));
       for (let i = 0; i < subs.length; i++) this.enqueue(subs[i]!, market, frame);
     }
     const t3 = this.d.clock.mono();
@@ -269,15 +285,18 @@ export class WsGateway implements ConsolidatedListener {
   onUnavailable(market: number, lastKnown: Consolidated | null): void {
     const subs = this.subscribers[market]!;
     if (subs.length === 0) return;
-    const frame = json({ type: 'unavailable', mint: this.d.model.markets[market]!.mint, lastKnown: lastKnown ? restConsolidated(lastKnown) : null });
+    const frame = this.frameOnce(json({ type: 'unavailable', mint: this.d.model.markets[market]!.mint, lastKnown: lastKnown ? restConsolidated(lastKnown) : null }));
     for (let i = 0; i < subs.length; i++) this.enqueue(subs[i]!, market, frame);
   }
 
-  /** Sends now, or keeps only the newest frame for this market while the client is congested. */
+  /**
+   * Sends now, or keeps only the newest frame for this market while the client is congested.
+   * `frame` must come from `frameOnce` (wire-ready bytes when pre-framing is on).
+   */
   // @spec API-FAN-002
   private enqueue(c: Client, market: number, frame: Buffer): void {
     if (c.congestedSince === null && c.ws.bufferedAmount <= this.o.highWater) {
-      c.ws.send(frame, SEND_TEXT);
+      this.write(c, frame);
       this.stats.messagesSent++;
       return;
     }
@@ -289,6 +308,47 @@ export class WsGateway implements ConsolidatedListener {
     c.pending[market] = frame;
     this.stats.conflated++;
   }
+
+  /**
+   * Server-to-client frames are unmasked, so every subscriber receives byte-identical frames:
+   * build the WebSocket text frame (header + payload) once per update instead of once per client.
+   * @spec API-FAN-001
+   */
+  private frameOnce(payload: Buffer): Buffer {
+    if (!this.o.preframe) return payload;
+    return Buffer.concat(Sender.frame(payload, { fin: true, opcode: 1, mask: false, readOnly: true, rsv1: false }));
+  }
+
+  /**
+   * Writes one update. Pre-framed bytes go straight to the socket (one write, no per-client
+   * framing); `bufferedAmount` still counts them because ws reads it from the socket's
+   * writable state. Ordering with control replies holds: ws writes those synchronously too
+   * (permessage-deflate is disabled, so its queue is never used).
+   */
+  private write(c: Client, frame: Buffer): void {
+    if (!this.o.preframe) {
+      c.ws.send(frame, SEND_TEXT);
+      return;
+    }
+    if (c.ws.readyState !== c.ws.OPEN) return;
+    const sock = (c.ws as unknown as { _socket: Socket })._socket;
+    if (this.o.corkPerTick && !this.corked.has(sock)) {
+      // Updates handled in the same event-loop turn reach each client in one system call.
+      sock.cork();
+      this.corked.add(sock);
+      if (!this.uncorkScheduled) {
+        this.uncorkScheduled = true;
+        setImmediate(this.uncorkAll);
+      }
+    }
+    sock.write(frame);
+  }
+
+  private readonly uncorkAll = (): void => {
+    this.uncorkScheduled = false;
+    for (const s of this.corked) s.uncork();
+    this.corked.clear();
+  };
 
   /** Control replies bypass conflation but still go out in order. */
   private sendNow(c: Client, frame: Buffer): void {
@@ -306,7 +366,7 @@ export class WsGateway implements ConsolidatedListener {
           if (f === undefined) continue;
           c.pending[m] = undefined;
           c.pendingCount--;
-          c.ws.send(f, SEND_TEXT);
+          this.write(c, f);
           this.stats.messagesSent++;
         }
         c.congestedSince = null;

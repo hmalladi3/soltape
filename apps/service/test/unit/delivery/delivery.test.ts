@@ -179,6 +179,7 @@ describe('CI', () => {
       eventLoopP99Ms: 0,
       rssMb: 0,
       gcPauseMs: 0,
+      serviceCpuPct: 0,
       persistDrops: 0,
       persistence: '',
     });

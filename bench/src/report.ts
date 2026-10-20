@@ -51,7 +51,7 @@ export function renderMarkdown(cells: CellResult[], m: MachineSpec, meta: { dura
   const rows = cells
     .map(
       (c) =>
-        `| ${c.rate.toLocaleString('en-US')} | ${c.subscribers} | ${us(c.e2e.p50)} | ${us(c.e2e.p99)} | ${us(c.e2e.p999)} | ${us(c.e2e.max)} | ${us(c.internal.p50)} | ${us(c.internal.p99)} | ${us(c.internal.p999)} | ${c.eventLoopP99Ms.toFixed(2)} ms | ${(c.e2e.conflationRatio * 100).toFixed(2)}% | ${Math.round(c.rssMb)} MB | ${Math.round(c.gcPauseMs)} ms | ${c.persistDrops} |`,
+        `| ${c.rate.toLocaleString('en-US')} | ${c.subscribers} | ${us(c.e2e.p50)} | ${us(c.e2e.p99)} | ${us(c.e2e.p999)} | ${us(c.e2e.max)} | ${us(c.internal.p50)} | ${us(c.internal.p99)} | ${us(c.internal.p999)} | ${c.eventLoopP99Ms.toFixed(2)} ms | ${(c.e2e.conflationRatio * 100).toFixed(2)}% | ${Math.round(c.rssMb)} MB | ${Math.round(c.gcPauseMs)} ms | ${Math.round(c.serviceCpuPct)}% | ${c.persistDrops} |`,
     )
     .join('\n');
   const k = [...knee(cells)]
@@ -65,8 +65,8 @@ ${m.cpu}, ${m.cores} cores, ${m.memoryGb} GB, ${m.platform}. Node ${m.node}, ${m
 ${meta.benchMarkets} synthetic markets (2 pools each), ${meta.warmupS} s warmup then ${meta.durationS} s measured per cell. Persistence: ${cells[0]?.persistence ?? 'unknown'}.
 End-to-end = client receive − intended send (open-loop schedule). Internal = frame receipt → last WebSocket write, from the service's HDR window.
 
-| Rate (updates/s) | Subscribers | e2e p50 | e2e p99 | e2e p99.9 | e2e max | internal p50 | internal p99 | internal p99.9 | event-loop p99 | conflated | RSS | GC pause | persist drops |
-|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Rate (updates/s) | Subscribers | e2e p50 | e2e p99 | e2e p99.9 | e2e max | internal p50 | internal p99 | internal p99.9 | event-loop p99 | conflated | RSS | GC pause | service CPU | persist drops |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
 ${rows}
 
 ${k}

@@ -69,11 +69,13 @@ export function joinLatencies(log: SendLog, sockets: SocketReceipts[]): E2EResul
   }
   const measured = intendedBySlot.size;
   const expected = measured * sockets.length;
+  // No delivered sample at all means the cell collapsed, not that latency was zero.
+  const none = h.totalCount === 0;
   const r: E2EResult = {
-    p50: h.getValueAtPercentile(50),
-    p99: h.getValueAtPercentile(99),
-    p999: h.getValueAtPercentile(99.9),
-    max: h.maxValue,
+    p50: none ? Number.POSITIVE_INFINITY : h.getValueAtPercentile(50),
+    p99: none ? Number.POSITIVE_INFINITY : h.getValueAtPercentile(99),
+    p999: none ? Number.POSITIVE_INFINITY : h.getValueAtPercentile(99.9),
+    max: none ? Number.POSITIVE_INFINITY : h.maxValue,
     samples: h.totalCount,
     conflationRatio: expected === 0 ? 0 : 1 - receivedTotal / expected,
     measuredInputs: measured,
@@ -90,6 +92,8 @@ export interface CellResult {
   eventLoopP99Ms: number;
   rssMb: number;
   gcPauseMs: number;
+  /** Service CPU over the measured window, % of one core (distinguishes service-bound from machine-starved). */
+  serviceCpuPct: number;
   persistDrops: number;
   persistence: string;
 }
