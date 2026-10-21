@@ -5,15 +5,15 @@
 
 ## Up next
 
-- Full matrix on the runner with persistence up after iteration 2 (bench workflow); fill README latency table with it
 - Phase 7 next (design changes; walk the arrow first): shard WebSocket subscribers across processes to pass the single-core ceiling (~92% of a core at 10k updates/s × 100 subs on a 4-vCPU runner); optional binary frame encoding; run the full matrix via the `bench` workflow (Actions → bench) for a complete table
 
 ## Waiting on the user
 
-- After the first image publish: make the GHCR package `soltape` public (GitHub → Packages → soltape → Package settings → Change visibility), so `docker compose up` can pull without login
+- Decide whether to take on multi-core fan-out (design change: HLD KDD-1 single process → WebSocket shards); see docs/perf.md "Next candidates"
 
 ## Done
 
+- 2026-10-21: Full 15-cell matrix on the runner with persistence up (run 39650914440): all cells completed; README latency section and docs/perf.md updated; Phase 7 stopping point recorded (single-event-loop ceiling ~95% of a core)
 - 2026-10-21: Phase 7 iteration 2: history writes via `unnest` instead of Drizzle multi-row INSERT (event-loop CPU per 2,000 rows 34 ms → 2.7 ms; local event-loop p99 at 10k/s 34 ms → 1.4 ms); bench watchdog + cooldown, job limit 150 min; COPY measured and not shipped (PER-PG-020 removed)
 - 2026-10-20: Phase 7 iteration 1: fan-out frame-once + cork-per-turn; runner: 1k/s × 100 subs went from collapse (p50 2.7 s) to p50 482 µs / p99 1.19 ms with 0% conflation; CI gate re-armed; README latency section filled from the runner; DLV-* [x]; CI green on github.com/hmalladi3/soltape (image published to GHCR)
 - 2026-10-19: Wave 7 (ESLint strict-type-checked + Prettier, TS 6 for typescript-eslint, Dockerfile, compose live/replay/bench, compose smoke script verified locally, CI + image workflows, cargo-fuzz targets run clean locally, README, delivery tests): 444 unit tests; coherence clean across all 267 active specs. Local Linux-VM bench (Docker Desktop, persistence up) showed heavy tails; headline numbers moved to GitHub Actions

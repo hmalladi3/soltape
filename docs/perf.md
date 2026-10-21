@@ -95,7 +95,24 @@ Internal latency stayed at 35–90 µs, so the hot path was fine, and the event 
 | Postgres client share of samples | 25.7% | 1.4% |
 | Rows written / dropped | — | 150,030 + 150,040 / 0 |
 
-**Runner confirmation:** full matrix with persistence up, pending.
+**Runner confirmation** (full matrix, Redis and Postgres up, `bench` run 39650914440 vs 39372676270, same workflow and settings):
+
+| Cell | Before | After |
+|---|---|---|
+| 10k/s × 1 sub | p99 85.9 ms, 11.7% conflated, loop 67 ms | p99 10.8 ms, 0% conflated, loop 5.0 ms |
+| 20k/s × 1 sub | 41% conflated | 0.07% conflated |
+| 1k/s × 100 subs | p99 23.3 ms, loop 5.4 ms | p99 3.67 ms, loop 2.1 ms |
+| 10k/s × 100 subs | p99 164 ms, 42% conflated | p99 60.8 ms, 0.12% conflated |
+
+Zero persistence drops in every cell below saturation. All 15 cells completed: the per-cell watchdog held, and no cell overran.
+
+## Stopping point (2026-10-21)
+
+**The remaining ceiling is the single event loop doing useful work.** The service is at about 95% of a core:
+- at 10–20k updates/s with one subscriber;
+- at about 100k fan-out messages/s (1k/s × 100 subscribers, about 8 µs per corked send with no same-turn batching at that rate).
+
+Internal latency stays at tens of microseconds in every cell. No remaining in-process candidate shows a large measured cost. Going further means using more cores, which is a design change (below).
 
 ## Next candidates (not started)
 

@@ -74,25 +74,38 @@ A dropped venue is excluded immediately (`source_down`), a silent one within abo
 ## Latency
 
 <!-- RESULTS:START -->
-Measured on a GitHub-hosted runner (`ubuntu-24.04`, 4 vCPU AMD EPYC 9V74, Node 24), where the replay server, the service and the load-client processes all share the machine; commit `7455106`. Replay of real recorded frames, 3 s warmup then 10 s measured per cell, no Redis/Postgres.
+Full matrix on a GitHub-hosted runner (`ubuntu-24.04`, 4 vCPU AMD EPYC 7763, Node 24), **with Redis and Postgres running** (production-like). The replay server, the service and the load-client processes all share the 4 vCPUs. Commit `9377b29`, [bench workflow run](https://github.com/hmalladi3/soltape/actions/runs/39650914440). Replay of real recorded frames, open-loop, 10 s warmup then 30 s measured per cell.
 
-| Load | Subscribers | e2e p50 | e2e p99 | internal p50 | internal p99 | conflated | service CPU |
-|---:|---:|---:|---:|---:|---:|---:|---:|
-| 1,000 updates/s | 1 | 124 µs | 388 µs | 24 µs | 79 µs | 0% | 12% |
-| 10,000 updates/s | 1 | 78 µs | 1.72 ms | 16 µs | 36 µs | 0% | 55% |
-| 1,000 updates/s | 100 | 482 µs | 1.19 ms | 46 µs | 105 µs | 0% | 83% |
-| 10,000 updates/s | 100 | 1.60 ms | 13.8 ms | 17 µs | 58 µs | 0% | 92% |
+| Load | Subs | e2e p50 | e2e p99 | internal p50 | internal p99 | event-loop p99 | conflated | service CPU |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 1,000/s | 1 | 150 µs | 1.38 ms | 25 µs | 41 µs | 0.92 ms | 0% | 15% |
+| 5,000/s | 1 | 154 µs | 10.2 ms | 27 µs | 41 µs | 2.2 ms | 0% | 61% |
+| 10,000/s | 1 | 194 µs | 10.8 ms | 30 µs | 53 µs | 5.0 ms | 0% | 94% |
+| 20,000/s | 1 | 404 µs | 15.0 ms | 17 µs | 51 µs | 6.9 ms | 0.07% | 95% |
+| 50,000/s | 1 | 32.8 ms | 78.5 ms | 9 µs | 36 µs | 52.7 ms | 64% | 103% |
+| 1,000/s | 100 | 1.32 ms | 3.67 ms | 40 µs | 80 µs | 2.1 ms | 0% | 94% |
+| 5,000/s | 100 | 2.15 ms | 19.3 ms | 25 µs | 79 µs | 7.9 ms | 0% | 97% |
+| 10,000/s | 100 | 19.1 ms | 60.8 ms | 28 µs | 78 µs | 55 ms | 0.12% | 75% |
+| 20,000/s | 100 | 54.2 ms | 99.0 ms | 12 µs | 57 µs | 79 ms | 56% | 87% |
+| 1,000/s | 1,000 | 25.3 ms | 53.2 ms | 124 µs | 478 µs | 40 ms | 0% | 86% |
+| 5,000/s | 1,000 | 315 ms | 558 ms | 26 µs | 241 µs | 412 ms | 69% | 89% |
 
-*Internal* is frame receipt to the last WebSocket write inside the service. *End-to-end* adds the replay server's socket, kernel scheduling of the three processes on 4 vCPUs, and the client's receive, measured from the frame's *intended* send time. The 10k × 100 cell is 1M messages/s delivered with nothing conflated; its tail is the shared 4-vCPU machine, with the service at 92% of a core.
+How to read it:
+- **Internal** latency (frame receipt to the last WebSocket write inside the service) stays at tens of microseconds across the whole matrix.
+- **End-to-end** adds the replay server's socket, the client's receive and, mostly, three processes contending for 4 shared vCPUs. It is measured from each frame's *intended* send time, so stalls are charged in full.
+- The **ceiling is one event loop**: the service reaches about 95% of a core at 10–20k updates/s with one subscriber, or about 100k messages/s of fan-out (1k/s × 100 subscribers). Past that, conflation takes over by design: memory stays bounded and clients converge on the latest price, but intermediate updates are skipped.
+- Cells at 50k/s × 100 and at 10k–50k/s × 1,000 are fully saturated; they're in the [run's job summary](https://github.com/hmalladi3/soltape/actions/runs/39650914440).
 
 **Frame decoder** (same runner, real mainnet frames, latency under GC pressure):
 
 | Decoder | Frames/s | p50 | p99 | p99.9 |
 |---|---:|---:|---:|---:|
-| Rust (napi-rs) | 650,800 | 1.87 µs | 3.38 µs | 8.80 µs |
-| TypeScript reference | 149,800 | 7.45 µs | 13.65 µs | 38.98 µs |
+| Rust (napi-rs) | 492,200 | 2.38 µs | 2.58 µs | 11.1 µs |
+| TypeScript reference | 122,200 | 9.36 µs | 18.9 µs | 31.3 µs |
 
-**WebSocket fan-out** went from collapsing to healthy at 100 subscribers after framing each update once and corking sockets per event-loop turn (−80% CPU per update when updates share a turn; details and the A/A noise floor in [`docs/perf.md`](docs/perf.md)).
+Two profiling-driven optimizations got here; each was measured against an A/A noise floor on the runner, and both are recorded in [`docs/perf.md`](docs/perf.md):
+- **WebSocket fan-out:** framing each update once and corking sockets per event-loop turn cut CPU per update by 80% when updates share a turn. 100 subscribers at 1k/s went from collapse to healthy.
+- **History writes:** moving off the ORM's per-value insert builder cut event-loop CPU per 2,000 rows from 34 ms to 2.7 ms. At 10k/s with one subscriber, the event-loop p99 dropped from 67 ms to 5 ms and conflation from 12% to 0.
 <!-- RESULTS:END -->
 
 Every push runs a reduced benchmark on a GitHub-hosted runner and publishes it in the [CI job summary](https://github.com/hmalladi3/soltape/actions/workflows/ci.yml). Shared runners are noisy, so those numbers are a regression signal (the job fails above 5× a committed baseline), not the headline.
@@ -143,7 +156,7 @@ Markets live in [`config/markets.json`](config/markets.json): SOL, JUP, JTO, BON
 ## Known limits
 
 - **The free public RPC throttles account notifications.** Measured: a handful per pool per 15 s for pools that trade several times a second. Live mode on it updates every few seconds; slot streams, snapshots and re-reads keep it correct. The latency numbers come from replay.
-- **The single event loop is the ceiling.** At 10,000 updates/s × 100 subscribers (1M messages/s) the service runs at about 92% of a core on a 4-vCPU runner. Beyond that, conflation takes over: clients still converge on the latest price, but intermediate updates are skipped. Scaling past one core means sharding subscribers across processes.
+- **One event loop is the ceiling.** About 10–20k updates/s, or about 100k fan-out messages/s, on a shared 4-vCPU runner. Beyond that, conflation takes over: clients still converge on the latest price, but intermediate updates are skipped. Going further means spreading WebSocket subscribers across processes.
 - `processed` commitment by default: fastest, and very rarely reflects a slot that is later skipped. This is a market-data feed, not an oracle.
 
 ## Development
