@@ -11,10 +11,15 @@
     "@soltape/replay": "workspace:*",
     "@soltape/service": "workspace:*",
     "@soltape/shared": "workspace:*",
+    "drizzle-orm": "^0.45.4",
     "hdr-histogram-js": "^3.0.1",
+    "pg": "^8.23.1",
+    "pg-copy-streams": "^7.0.0",
     "ws": "^8.22.0"
   },
   "devDependencies": {
+    "@types/pg": "^8.23.1",
+    "@types/pg-copy-streams": "^1.2.5",
     "@types/ws": "^8.18.2"
   }
 }

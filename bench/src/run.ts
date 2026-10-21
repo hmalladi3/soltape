@@ -100,7 +100,36 @@ export async function runBench(o: BenchOptions): Promise<{ cells: CellResult[]; 
   if (o.summary) appendSummary(markdown);
   return { cells, markdown, jsonPath: `${stem}.json`, mdPath: `${stem}.md` };
 
+  /**
+   * One cell with a hard watchdog: a saturated service can stall client connects or reports
+   * indefinitely, so a cell that overruns is recorded as collapsed and the run moves on after
+   * a cooldown.
+   */
   async function runCell(rate: number, subscribers: number): Promise<CellResult> {
+    const spawned: ChildProcess[] = [];
+    let timer: NodeJS.Timeout | undefined;
+    const limitMs = (o.warmupS + o.durationS) * 1000 + CELL_SLACK_MS;
+    const result = await Promise.race([runCellInner(rate, subscribers, spawned), new Promise<null>((r) => (timer = setTimeout(() => r(null), limitMs)))]);
+    clearTimeout(timer);
+    for (const c of spawned) if (c.exitCode === null) c.kill('SIGKILL');
+    if (result) return result;
+    console.warn(`cell ${rate}/s x ${subscribers} overran ${Math.round(limitMs / 1000)} s; recorded as collapsed`);
+    await sleep(COOLDOWN_MS);
+    return {
+      rate,
+      subscribers,
+      e2e: { p50: Infinity, p99: Infinity, p999: Infinity, max: Infinity, samples: 0, conflationRatio: 1, measuredInputs: 0 },
+      internal: { p50: Number.NaN, p99: Number.NaN, p999: Number.NaN },
+      eventLoopP99Ms: Number.NaN,
+      rssMb: Number.NaN,
+      gcPauseMs: Number.NaN,
+      serviceCpuPct: Number.NaN,
+      persistDrops: Number.NaN,
+      persistence,
+    };
+  }
+
+  async function runCellInner(rate: number, subscribers: number, spawned: ChildProcess[]): Promise<CellResult> {
     const perClient = splitEvenly(subscribers, Math.min(o.clients, subscribers));
     const clients = perClient.map((n) =>
       fork(join(root, 'bench/dist/client.js'), [`ws://127.0.0.1:${o.servicePort}/ws`, String(n), '4'], {
@@ -109,6 +138,7 @@ export async function runBench(o: BenchOptions): Promise<{ cells: CellResult[]; 
       }),
     );
     children.push(...clients);
+    spawned.push(...clients);
     await Promise.all(clients.map((c) => once(c, 'ready')));
     await sleep(300);
     const before = await (await fetch(`${serviceUrl}/metrics`)).text();
@@ -165,6 +195,9 @@ export async function runBench(o: BenchOptions): Promise<{ cells: CellResult[]; 
 }
 
 const COLLECT_TIMEOUT_MS = 60_000;
+/** Slack beyond warmup + duration for connects, drain and collection before a cell is abandoned. */
+const CELL_SLACK_MS = 150_000;
+const COOLDOWN_MS = 15_000;
 
 /** A cell whose clients could not report: every measured input counts as not delivered. */
 function collapsed(log: { intendedNs: Float64Array; warmupMs: number }) {

@@ -101,7 +101,7 @@ CREATE TABLE consolidated (
 
 - **Two in-memory ring buffers**, one for observations and one for consolidated rows. Each holds `PG_QUEUE_MAX` rows (default 50,000).
 - **Flush trigger:** a buffer reaches `PG_BATCH_ROWS` (default 1,000), or `PG_FLUSH_MS` (default 250 ms) elapses with rows pending.
-- **Insert method:** a multi-row parameterized `INSERT … VALUES (…),(…)`, through the `pg` pool (`max: 4`, `connectionTimeoutMillis: 2000`, `statement_timeout: 5000` ms). There is one flush in flight per table at a time. The timeouts mean a hung or unreachable database fails a flush within seconds instead of tying up the pool.
+- **Insert method:** one parameterized `INSERT INTO … SELECT * FROM unnest($1::timestamptz[], $2::text[], …)`, one array parameter per column, however many rows the batch holds. `text[]` columns (`sources`) travel as `\x1f`-joined strings and are split with `string_to_array`, because `unnest` cannot take ragged 2-D arrays. Writes go through the `pg` pool (`max: 4`, `connectionTimeoutMillis: 2000`, `statement_timeout: 5000` ms). There is one flush in flight per table at a time. The timeouts mean a hung or unreachable database fails a flush within seconds instead of tying up the pool.
 - **Overflow:** when a buffer is full, the **oldest** row is dropped and `soltape_persist_dropped_total{sink}` is incremented. Recent history is worth more than old history to a live system.
 - **Idle-client errors:** both pools attach an `error` listener. Otherwise an idle client erroring when the server restarts would be an unhandled `error` event, which crashes the process.
 - **Read pool:** `/history` reads use a **separate** `pg` pool (`max: 2`, same timeouts), so a reader never waits behind a backlog of writes, and a heavy history query never stalls the writer.
@@ -127,7 +127,7 @@ Expected live volume is about 5 markets × 3 venues at a few changes per second,
 | Redis offline queue | Disabled; recover by full rewrite on reconnect | ioredis default offline queue | The default buffers commands without limit while disconnected. A full rewrite on reconnect is bounded and correct. |
 | Restored data eligibility | Display only, never eligible | Treat as fresh until replaced | A restart can be hours later, and serving restored prices as live would be lying. |
 | History retention | Daily range partitions, drop old partitions | `DELETE WHERE ts < …`; TimescaleDB | Dropping a partition is constant-cost with no bloat or vacuum pressure. TimescaleDB is a heavier dependency for features that aren't needed here. |
-| Insert path | Batched multi-row `INSERT` | `COPY`, per-row inserts | Multi-row `INSERT` through Drizzle/`pg` is simple, and at this volume is far below Postgres's limits. `COPY` (`pg-copy-streams`) is the optimization-loop upgrade if the benchmark shows flush cost. |
+| Insert path | `INSERT … SELECT FROM unnest(column arrays)` | Drizzle multi-row `INSERT`; `COPY FROM STDIN`; per-row inserts | Measured (`docs/perf.md`, iteration 2), per 1,000 + 1,000 rows, event-loop CPU: Drizzle 34 ms (its per-value checks were 64% of the service's CPU at 10k updates/s and stalled the event loop for 34 ms p99), `unnest` 2.7 ms, `COPY` 2.2 ms. `unnest` stays a single parameterized statement with a constant 9 parameters (never near the 65,535 limit) and needs no extra dependency or dedicated connection. `COPY`'s 0.5 ms edge did not justify those. |
 | Overflow policy | Drop oldest, count | Block producers; drop newest | Producers are on the hot path and must never block. Newer rows are more valuable. |
 | Primary keys | None (time-series append) | Surrogate `bigserial` | No reads by row id. Saves an index per partition. |
 | Numeric type | `double precision` | `numeric(38,18)` | Matches computed precision, and is faster to aggregate. |
@@ -139,7 +139,6 @@ Expected live volume is about 5 markets × 3 venues at a few changes per second,
 2. ✅ Persistence state appears in `/health.dependencies` and never changes `status`.
 
 ### Deferred
-1. `COPY`-based ingest if flush latency matters under benchmark load.
 2. A Redis pub/sub channel for horizontal read replicas (HLD non-goal).
 
 ## References

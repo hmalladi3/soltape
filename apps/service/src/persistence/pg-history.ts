@@ -1,5 +1,4 @@
 import type { Clock } from '@soltape/shared';
-import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 import type { Bucket, HistoryBucket, HistoryReader } from '../api/history.js';
 import { BUCKETS } from '../api/history.js';
@@ -9,7 +8,8 @@ import { noTelemetry, type TelemetryHooks } from '../telemetry/hooks.js';
 import type { Logger } from '../telemetry/logger.js';
 import { migrate } from './migrations.js';
 import { DAY_MS, maintainPartitions, startOfDayUtc, type MaintenanceReport } from './partitions.js';
-import { consolidated, observations, type ConsolidatedRow, type ObservationRow } from './schema.js';
+import { insertUnnest } from './batch-writers.js';
+import type { ConsolidatedRow, ObservationRow } from './schema.js';
 
 export interface PgHistoryOptions {
   queueMax: number;
@@ -93,7 +93,6 @@ export class PgHistory implements ConsolidatedListener, ObservationListener, His
   private readonly o: PgHistoryOptions;
   private readonly writer: pg.Pool;
   private readonly reader: pg.Pool;
-  private readonly db: NodePgDatabase;
   private readonly queues: Record<Table, Ring<ObservationRow | ConsolidatedRow>>;
   private readonly inflight: Record<Table, Promise<void> | null> = { pg_observations: null, pg_consolidated: null };
   private up = false;
@@ -125,7 +124,6 @@ export class PgHistory implements ConsolidatedListener, ObservationListener, His
     // Idle-client errors (e.g. the server restarting) must never crash the process.
     this.writer.on('error', (err) => this.log.debug({ err }, 'idle writer client error'));
     this.reader.on('error', (err) => this.log.debug({ err }, 'idle reader client error'));
-    this.db = drizzle(this.writer);
     this.queues = { pg_observations: new Ring(this.o.queueMax), pg_consolidated: new Ring(this.o.queueMax) };
   }
 
@@ -230,8 +228,8 @@ export class PgHistory implements ConsolidatedListener, ObservationListener, His
       try {
         if (!this.up && !(await this.ensureReady())) continue;
         const t0 = this.d.clock.mono();
-        if (table === 'pg_observations') await this.db.insert(observations).values(batch as ObservationRow[]);
-        else await this.db.insert(consolidated).values(batch as ConsolidatedRow[]);
+        if (table === 'pg_observations') await insertUnnest(this.writer, 'observations', batch as ObservationRow[]);
+        else await insertUnnest(this.writer, 'consolidated', batch as ConsolidatedRow[]);
         (this.d.telemetry ?? noTelemetry).flush(table, this.d.clock.mono() - t0);
         return true;
       } catch (err) {

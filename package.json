@@ -25,7 +25,8 @@
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",
     "smoke": "./scripts/compose-smoke.sh",
-    "bench:fanout": "pnpm build && node bench/dist/fanout.js"
+    "bench:fanout": "pnpm build && node bench/dist/fanout.js",
+    "bench:history": "pnpm build && node bench/dist/history.js"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

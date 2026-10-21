@@ -62,4 +62,44 @@ The noise floor on shared runners is wide: the A/A pair differed by up to 12%. O
 
 **Stopping point for this iteration:** the 100-subscriber cells now deliver everything. At 10k × 100 the service uses about 92% of a core, so the next ceiling is the single event loop itself, not per-send overhead. The CI regression gate is re-armed with these numbers (`bench/baseline.json`).
 
-**Next candidates (not started):** shard WebSocket subscribers across worker processes (`SO_REUSEPORT`) to use more than one core; a binary encoding to shrink the 400-byte frames. Both are design changes and would walk the arrow (LLD → EARS) first.
+## Iteration 2: history writes blocking the event loop (2026-10-21)
+
+**Symptom:** the full matrix on the runner with Redis and Postgres up (`bench` workflow, run 39372676270) was far worse than the quick matrix without persistence:
+- 1k/s × 100 subscribers: e2e p99 23.3 ms vs 1.19 ms.
+- 10k/s × 1 subscriber: 11.7% conflated, event loop 67 ms.
+
+Internal latency stayed at 35–90 µs, so the hot path was fine, and the event loop itself was being blocked. The same run also overran the 60-minute job limit in the 1,000-subscriber cells: the harness had no timeout on client connects. Fixed with a per-cell watchdog and cooldown.
+
+**Profile** (local, 10k updates/s for 15 s, Redis and Postgres up, `--cpu-prof`):
+- Event-loop delay p99 was 34 ms.
+- **Drizzle's insert query builder was 25.4% of all samples, about 64% of non-idle CPU.** Mostly `is()` entity checks, called per value across about 9,000 parameters per 1,000-row batch.
+- The whole feed (decoder, reconciler, gateway, metrics) was about 4%.
+
+**Candidates** (`bench:history`, interleaved, real Postgres, ms of event-loop CPU per batch of 1,000 consolidated + 1,000 observation rows):
+
+| Writer | CPU / batch | Wall / batch |
+|---|---:|---:|
+| A: Drizzle multi-row `INSERT` (baseline) | 34.3 | 49.9 |
+| A′: A/A | 35.4 (+3%) | 56.7 |
+| B: `INSERT … SELECT FROM unnest(column arrays)` | **2.67 (−92%)** | 15.2 |
+| C: `COPY FROM STDIN` (text) | 2.18 (−94%) | 10.1 |
+
+**Decision:** ship B. C's extra 0.5 ms per 2,000 rows (about 0.5% of a core at 20k rows/s) does not justify a new dependency and a dedicated connection per batch. B stays one parameterized statement with a constant 9 parameters. The deferred `COPY` spec (PER-PG-020) is removed. Its measurement is kept here, and COPY stays in `bench:history` as the comparison.
+
+**Result** (same local profile, after):
+
+| | Before | After |
+|---|---|---|
+| Event-loop delay p99 | 34 ms | 1.4 ms |
+| Postgres flush wall, per batch | ~57 ms | ~19 ms |
+| Postgres client share of samples | 25.7% | 1.4% |
+| Rows written / dropped | — | 150,030 + 150,040 / 0 |
+
+**Runner confirmation:** full matrix with persistence up, pending.
+
+## Next candidates (not started)
+
+- Shard WebSocket subscribers across worker processes (`SO_REUSEPORT`) to use more than one core.
+- A binary encoding to shrink the 400-byte frames.
+
+Both are design changes and would walk the arrow (LLD → EARS) first.

@@ -19,7 +19,7 @@ on:
 jobs:
   bench:
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 150
     services:
       redis:
         image: redis:7-alpine

@@ -44,6 +44,7 @@ export function machineSpec(): MachineSpec {
   };
 }
 
+const num = (v: number, unit: string) => (Number.isFinite(v) ? `${Math.round(v)}${unit}` : '–');
 const us = (v: number) => (!Number.isFinite(v) ? 'collapsed' : v >= 1000 ? `${(v / 1000).toFixed(2)} ms` : `${Math.round(v)} µs`);
 
 /** Markdown report: machine spec, one row per cell, and the knee per subscriber count. */
@@ -51,7 +52,7 @@ export function renderMarkdown(cells: CellResult[], m: MachineSpec, meta: { dura
   const rows = cells
     .map(
       (c) =>
-        `| ${c.rate.toLocaleString('en-US')} | ${c.subscribers} | ${us(c.e2e.p50)} | ${us(c.e2e.p99)} | ${us(c.e2e.p999)} | ${us(c.e2e.max)} | ${us(c.internal.p50)} | ${us(c.internal.p99)} | ${us(c.internal.p999)} | ${c.eventLoopP99Ms.toFixed(2)} ms | ${(c.e2e.conflationRatio * 100).toFixed(2)}% | ${Math.round(c.rssMb)} MB | ${Math.round(c.gcPauseMs)} ms | ${Math.round(c.serviceCpuPct)}% | ${c.persistDrops} |`,
+        `| ${c.rate.toLocaleString('en-US')} | ${c.subscribers} | ${us(c.e2e.p50)} | ${us(c.e2e.p99)} | ${us(c.e2e.p999)} | ${us(c.e2e.max)} | ${us(c.internal.p50)} | ${us(c.internal.p99)} | ${us(c.internal.p999)} | ${Number.isFinite(c.eventLoopP99Ms) ? `${c.eventLoopP99Ms.toFixed(2)} ms` : '–'} | ${(c.e2e.conflationRatio * 100).toFixed(2)}% | ${num(c.rssMb, ' MB')} | ${num(c.gcPauseMs, ' ms')} | ${num(c.serviceCpuPct, '%')} | ${num(c.persistDrops, '')} |`,
     )
     .join('\n');
   const k = [...knee(cells)]

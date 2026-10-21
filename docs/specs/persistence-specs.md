@@ -30,7 +30,7 @@ LLD: `docs/llds/persistence.md`
 
 - [x] **PER-PG-010**: When an observation's price, eligibility, or reason changes, the history sink shall enqueue an `observations` row.
 - [x] **PER-PG-011**: When a consolidated update is emitted, the history sink shall enqueue a `consolidated` row. `unavailable` events produce no history row.
-- [x] **PER-PG-012**: When a history table's queue reaches 1,000 rows, or 250 ms have passed with rows pending, and no flush for that table is in flight, the history sink shall write the pending rows in one multi-row parameterized `INSERT`.
+- [x] **PER-PG-012**: When a history table's queue reaches 1,000 rows, or 250 ms have passed with rows pending, and no flush for that table is in flight, the history sink shall write the pending rows in one parameterized `INSERT … SELECT FROM unnest(…)` with one array parameter per column.
 - [x] **PER-PG-013**: If a history queue is full (50,000 rows) when a row is enqueued, then the history sink shall drop the oldest queued row and increment the dropped-rows counter for that sink.
 - [x] **PER-PG-014**: If a history flush fails, then the history sink shall retry it once after 1 second. If the retry also fails, it shall drop the batch, count the dropped rows, and mark the sink `down` until a later flush succeeds.
 - [x] **PER-PG-015**: The history writer's Postgres pool shall use at most 4 connections, a 2-second connection timeout, and a 5-second statement timeout.
@@ -39,5 +39,4 @@ LLD: `docs/llds/persistence.md`
 
 ## Deferred
 
-- [D] **PER-PG-020**: The history sink shall write batches with `COPY` instead of multi-row `INSERT`.
 - [D] **PER-RDS-020**: The system shall publish consolidated updates on a Redis pub/sub channel for read replicas.

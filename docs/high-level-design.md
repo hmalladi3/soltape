@@ -238,7 +238,7 @@ Jupiter is **optional**. Its API (`api.jup.ag`) requires a free key, and the key
 **Chosen:**
 - **REST and WebSocket** read the in-process state directly.
 - **Redis** gets the latest consolidated and per-source values, written fire-and-forget. It is used for warm restart (serve the last known state, flagged stale, immediately on boot) and so future read replicas could serve without ingesting.
-- **Postgres** gets every observation and consolidated update via a batch writer that flushes on size or interval, using multi-row inserts. Tables are partitioned by day, and retention is enforced by dropping partitions rather than `DELETE`.
+- **Postgres** gets every observation and consolidated update via a batch writer that flushes on size or interval, with one `INSERT … SELECT FROM unnest(column arrays)` per batch. That is about 2.7 ms of event-loop CPU per 2,000 rows, against 34 ms for the ORM's per-value inserts (`docs/perf.md`). Tables are partitioned by day, and retention is enforced by dropping partitions rather than `DELETE`.
 
 **Alternative:** Reading from Redis on the request path. That adds a network round trip to every read and buys nothing in a single process.
 
@@ -295,7 +295,7 @@ Jupiter is **optional**. Its API (`api.jup.ag`) requires a free key, and the key
 | **ws** | uWS.js, socket.io | See KDD-8. |
 | **napi-rs** | neon, WASM | napi-rs gives the best TS type generation, prebuilt-binary workflow, and Buffer-by-reference support. WASM can't avoid copying across the boundary and runs slower than native for parsing work. |
 | **Awilix** | tsyringe, manual wiring | Constructor injection with no decorators or reflect-metadata, scoped lifetimes, and easy swapping of real and fake sources in integration tests. |
-| **Postgres + Drizzle** | Prisma, Kysely | Drizzle is SQL-first, generates no client, and is typed close to the SQL. Custom migrations handle partitioning, which no ORM models well. |
+| **Postgres + Drizzle** | Prisma, Kysely | Drizzle is SQL-first, generates no client, and its table definitions give typed rows. Custom migrations handle partitioning, which no ORM models well. The hot batch writes bypass the query builder: profiling showed its per-value checks blocking the event loop (`docs/perf.md`, iteration 2). |
 | **Redis (ioredis)** | node-redis | Mature pipelining and auto-reconnect behavior that matters during failover tests. |
 | **zod** | hand-rolled guards | Validates config and untrusted Jupiter JSON at the boundary. Never used in the RPC hot path (that is Rust's job). |
 | **pino** | winston | Lowest-overhead structured logger for Node. Logging happens asynchronously off the main thread. |
